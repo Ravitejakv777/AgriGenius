@@ -1,0 +1,141 @@
+import { useLocation, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Home, MessageSquare, BarChart3, FileText, Users } from 'lucide-react';
+
+const SMOOTH_EASE = [0.32, 0.72, 0, 1] as const;
+
+export function GlobalBottomNav() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Metrics is moved to the last position and only unhidden when on Team (or viewing Metrics)
+  const isTeamOrMetrics = location.pathname === '/team' || location.pathname === '/about' || location.pathname === '/metrics';
+
+  const baseNavItems = [
+    { label: 'Home', path: '/', icon: Home },
+    { label: 'AI Assistant', path: '/chat', icon: MessageSquare },
+    { label: 'Report', path: '/report', icon: FileText },
+    { label: 'Team', path: '/team', icon: Users },
+  ];
+
+  const isMetricsActive = location.pathname === '/about' || location.pathname === '/metrics';
+
+  return (
+    <nav
+      aria-label="Bottom Navigation"
+      className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[10001] pointer-events-none select-none max-w-[calc(100vw-1.5rem)]"
+    >
+      <motion.div
+        layout
+        transition={{ layout: { duration: 0.32, ease: SMOOTH_EASE } }}
+        className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-2xl border border-slate-200/90 dark:border-neutral-800/90 shadow-[0_10px_35px_rgba(0,0,0,0.2)] rounded-2xl p-1.5 flex items-center justify-center pointer-events-auto overflow-hidden"
+      >
+        {baseNavItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = location.pathname === item.path;
+
+          return (
+            <motion.button
+              layout="position"
+              transition={{ layout: { duration: 0.32, ease: SMOOTH_EASE } }}
+              key={item.label}
+              type="button"
+              onClick={() => navigate(item.path)}
+              className="relative flex items-center space-x-1.5 px-3 py-2 sm:px-4 sm:py-2.5 mx-0.5 rounded-xl text-xs font-semibold cursor-pointer select-none transition-colors shrink-0"
+            >
+              {/* Smooth Sliding Active Highlight */}
+              {isActive && (
+                <motion.div
+                  layoutId="activeBottomNavHighlight"
+                  className="absolute inset-0 bg-emerald-50 dark:bg-white/15 border border-emerald-500/40 dark:border-white/30 rounded-xl shadow-sm z-0"
+                  transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+                />
+              )}
+              <Icon
+                className={`relative z-10 w-4 h-4 transition-colors duration-200 ${
+                  isActive ? 'text-emerald-600 dark:text-white font-bold' : 'text-slate-400 dark:text-neutral-500'
+                }`}
+              />
+              <span
+                className={`relative z-10 text-[11px] sm:text-xs transition-colors duration-200 ${
+                  isActive ? 'text-emerald-700 dark:text-white font-bold' : 'text-slate-600 dark:text-neutral-400'
+                }`}
+              >
+                {item.label}
+              </span>
+            </motion.button>
+          );
+        })}
+
+        {/* Smooth Animated Metrics Tab (Zero-footprint exit to completely eliminate any jerk) */}
+        <AnimatePresence mode="sync">
+          {isTeamOrMetrics && (
+            <motion.div
+              key="metrics-tab-wrapper"
+              layout
+              initial={{ opacity: 0, width: 0, scale: 0.9, marginLeft: 0, marginRight: 0 }}
+              animate={{
+                opacity: 1,
+                width: 'auto',
+                scale: 1,
+                marginLeft: 2,
+                marginRight: 2,
+                transition: {
+                  width: { duration: 0.32, ease: SMOOTH_EASE },
+                  marginLeft: { duration: 0.32, ease: SMOOTH_EASE },
+                  marginRight: { duration: 0.32, ease: SMOOTH_EASE },
+                  opacity: { duration: 0.22, ease: 'easeOut' },
+                  scale: { duration: 0.24, ease: 'easeOut' },
+                  layout: { duration: 0.32, ease: SMOOTH_EASE },
+                },
+              }}
+              exit={{
+                opacity: 0,
+                width: 0,
+                scale: 0.9,
+                marginLeft: 0,
+                marginRight: 0,
+                transition: {
+                  opacity: { duration: 0.12, ease: 'easeOut' },
+                  width: { duration: 0.3, ease: SMOOTH_EASE },
+                  marginLeft: { duration: 0.3, ease: SMOOTH_EASE },
+                  marginRight: { duration: 0.3, ease: SMOOTH_EASE },
+                  scale: { duration: 0.2, ease: 'easeIn' },
+                  layout: { duration: 0.3, ease: SMOOTH_EASE },
+                },
+              }}
+              style={{ originX: 1 }}
+              className="overflow-hidden flex items-center shrink-0"
+            >
+              <button
+                type="button"
+                onClick={() => navigate('/about')}
+                className="relative flex items-center space-x-1.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl text-xs font-semibold cursor-pointer select-none transition-colors whitespace-nowrap"
+              >
+                {isMetricsActive && (
+                  <motion.div
+                    layoutId="activeBottomNavHighlight"
+                    className="absolute inset-0 bg-emerald-50 dark:bg-white/15 border border-emerald-500/40 dark:border-white/30 rounded-xl shadow-sm z-0"
+                    transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+                  />
+                )}
+                <BarChart3
+                  className={`relative z-10 w-4 h-4 transition-colors duration-200 ${
+                    isMetricsActive ? 'text-emerald-600 dark:text-white font-bold' : 'text-slate-400 dark:text-neutral-500'
+                  }`}
+                />
+                <span
+                  className={`relative z-10 text-[11px] sm:text-xs transition-colors duration-200 ${
+                    isMetricsActive ? 'text-emerald-700 dark:text-white font-bold' : 'text-slate-600 dark:text-neutral-400'
+                  }`}
+                >
+                  Metrics
+                </span>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </nav>
+  );
+}
