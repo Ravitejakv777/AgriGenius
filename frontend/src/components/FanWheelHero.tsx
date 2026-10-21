@@ -691,17 +691,23 @@ export function FanWheelHero() {
       const dealVal = dealRef.current;
       const liftVal = liftRef.current;
 
-      // Wheel Geometry: Fan into elevated turning Wheel
-      const fanRadius = 560;
-      const wheelRadius = 720;
+      // Wheel Geometry: Fan into elevated turning Wheel with Mobile-Aware Responsive Geometry
+      const winW = typeof window !== 'undefined' ? window.innerWidth : 1200;
+      const winH = typeof window !== 'undefined' ? window.innerHeight : 800;
+      const isMobile = winW < 640;
+      const isTablet = winW >= 640 && winW < 1024;
+
+      const fanRadius = isMobile ? Math.min(340, winW * 0.88) : isTablet ? 450 : 560;
+      const wheelRadius = isMobile ? Math.min(450, winW * 1.15) : isTablet ? 600 : 720;
       const radius = fanRadius + (wheelRadius - fanRadius) * liftVal;
 
-      const fanPivotY = 640;
-      const wheelPivotY = 840;
+      const fanPivotY = isMobile ? Math.min(420, winH * 0.52) : isTablet ? 530 : 640;
+      const wheelPivotY = isMobile ? Math.min(550, winH * 0.68) : isTablet ? 700 : 840;
       const pivotY = fanPivotY + (wheelPivotY - fanPivotY) * liftVal;
 
       const totalCards = AGRI_CARDS.length;
-      const baseCardScale = (0.78 + 0.22 * dealVal) * (0.95 + 0.10 * liftVal);
+      const mobileScale = isMobile ? 0.72 : isTablet ? 0.88 : 1.0;
+      const baseCardScale = (0.78 + 0.22 * dealVal) * (0.95 + 0.10 * liftVal) * mobileScale;
 
       // Smooth Rotation Physics
       if (!isDraggingRef.current) {
@@ -825,7 +831,9 @@ export function FanWheelHero() {
 
     // Apply rotation once intentional drag movement starts (> 4px)
     if (dragDistanceRef.current > 4) {
-      const angleDelta = dx * 0.18;
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+      const sensitivity = isMobile ? 0.32 : 0.18;
+      const angleDelta = dx * sensitivity;
       targetAngleRef.current += angleDelta;
       currentAngleRef.current = targetAngleRef.current;
 
@@ -872,13 +880,13 @@ export function FanWheelHero() {
          ========================================================================= */}
       <div 
         ref={headerRef}
-        className="relative z-40 max-w-4xl mx-auto text-center pt-5 sm:pt-7 px-4 pointer-events-auto"
+        className="relative z-40 max-w-4xl mx-auto text-center pt-3 sm:pt-7 px-4 pointer-events-auto"
       >
-        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1] mb-2 drop-shadow-sm">
+        <h1 className="text-2xl sm:text-4xl md:text-6xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1] mb-1.5 sm:mb-2 drop-shadow-sm">
           The Grounded Wheel of <span className="bg-clip-text text-transparent bg-gradient-to-r from-emerald-600 via-teal-500 to-emerald-400 dark:from-white dark:via-neutral-200 dark:to-neutral-400">Farming AI.</span>
         </h1>
 
-        <p className="text-xs sm:text-sm text-slate-600 dark:text-neutral-300 max-w-lg mx-auto font-medium leading-relaxed">
+        <p className="text-[11px] sm:text-sm text-slate-600 dark:text-neutral-300 max-w-lg mx-auto font-medium leading-relaxed">
           Interactive knowledge wheel: spin or drag to explore &bull; click any card to inspect.
         </p>
       </div>
@@ -920,7 +928,7 @@ export function FanWheelHero() {
               velocityRef.current = 0;
               setSelectedCard(card);
             }}
-            className="absolute top-1/2 left-1/2 -ml-[90px] -mt-[155px] sm:-ml-[105px] sm:-mt-[180px] w-[180px] h-[310px] sm:w-[210px] sm:h-[360px] rounded-3xl overflow-hidden shadow-2xl cursor-pointer pointer-events-auto transform-style-3d will-change-transform"
+            className="absolute top-1/2 left-1/2 -ml-[75px] -mt-[130px] sm:-ml-[90px] sm:-mt-[155px] md:-ml-[105px] md:-mt-[180px] w-[150px] h-[260px] sm:w-[180px] sm:h-[310px] md:w-[210px] md:h-[360px] rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl cursor-pointer pointer-events-auto transform-style-3d will-change-transform"
             style={{
               aspectRatio: '9/16',
               visibility: 'hidden',
@@ -1134,7 +1142,7 @@ export function FanWheelHero() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 340, scale: 0.72 }}
                     transition={{ type: 'spring', damping: 24, stiffness: 220, mass: 0.85 }}
-                    className="w-[200px] sm:w-[230px] h-[340px] sm:h-[390px] rounded-3xl overflow-hidden shadow-2xl shadow-black ring-1 ring-white/20 shrink-0 relative bg-slate-950 order-1 lg:order-2 group will-change-transform self-center"
+                    className="w-[170px] sm:w-[200px] md:w-[230px] h-[280px] sm:h-[340px] md:h-[390px] rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl shadow-black ring-1 ring-white/20 shrink-0 relative bg-slate-950 order-1 lg:order-2 group will-change-transform self-center"
                   >
                     <img 
                       src={selectedCard.coverImage} 

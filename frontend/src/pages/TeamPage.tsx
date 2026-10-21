@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Leaf, 
-  MessageSquare, 
-  Phone, 
-  IdCard, 
-  GraduationCap, 
-  Copy, 
-  Check, 
+import {
+  Leaf,
+  MessageSquare,
+  Phone,
+  IdCard,
+  GraduationCap,
+  Copy,
+  Check,
   Sparkles,
   UserCheck,
-  Info
+  Edit3,
+  X,
+  Save,
+  RotateCcw
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 
@@ -30,41 +33,41 @@ const DEFAULT_TEAM: TeamMember[] = [
   {
     id: 'member-1',
     name: 'Kona Venkata Ravi Teja',
-    rollNumber: '2200030001',
-    branch: 'Computer Science & Engineering (AI & ML)',
+    rollNumber: 'CB.SC.U4CSE24327',
+    branch: 'Computer Science & Engineering',
     phoneNumber: '+91 98765 43210',
     photo: '/team/member1.jpg',
-    role: 'Project Lead & 3D Wheel Architect',
+    role: 'Frontend/3D Architect',
     bio: 'Architected the 3D grounded knowledge wheel and interactive web interface.',
   },
   {
     id: 'member-2',
-    name: 'Vadlamudi Mokshagnna Bramha Teja',
-    rollNumber: '2200030002',
-    branch: 'Computer Science & Engineering (Data Science)',
-    phoneNumber: '+91 98765 43211',
-    photo: '/team/member2.jpg',
-    role: 'RAG Pipeline & Embeddings Lead',
+    name: 'Tejasvi S',
+    rollNumber: 'CB.SC.U4CSE24350',
+    branch: 'Computer Science & Engineering',
+    phoneNumber: '+91 8668110993',
+    photo: '/team/member2.jpeg',
+    role: 'RAG Pipeline & Neural Retrieval Lead',
     bio: 'Engineered the dual-engine RAG retriever grounded on 347,944 verified KCC transcripts.',
   },
   {
     id: 'member-3',
-    name: 'Sai Charan Reddy',
-    rollNumber: '2200030003',
+    name: 'Rushil T',
+    rollNumber: 'CB.SC.U4CSE24351',
     branch: 'Computer Science & Engineering',
-    phoneNumber: '+91 98765 43212',
+    phoneNumber: '+91 8179610899',
     photo: '/team/member3.jpg',
-    role: 'FastAPI Backend & Inference Engine',
+    role: 'Backend Services & FastAPI Specialist',
     bio: 'Developed high-throughput streaming endpoints and vector database indices.',
   },
   {
     id: 'member-4',
-    name: 'Akhil Kumar Verma',
-    rollNumber: '2200030004',
-    branch: 'Electronics & Communication (IoT/AgriTech)',
-    phoneNumber: '+91 98765 43213',
+    name: 'Vadlamudi Mokshagnna Bramha Teja',
+    rollNumber: 'CB.SC.U4CSE24353',
+    branch: 'Computer Science & Engineering',
+    phoneNumber: '+91 6301465515',
     photo: '/team/member4.jpg',
-    role: 'Evaluation Metrics & Dataset Lead',
+    role: 'Evaluation Metrics & Dataset Verification',
     bio: 'Curated scientific agronomy dosage guidelines and evaluation benchmarks.',
   },
 ];
@@ -79,9 +82,9 @@ const FAN_CONFIG = [
 export function TeamPage() {
   const navigate = useNavigate();
 
-  const [teamMembers] = useState<TeamMember[]>(() => {
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
     try {
-      const saved = localStorage.getItem('agrigenius_team_members');
+      const saved = localStorage.getItem('agrigenius_team_members_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (
@@ -102,8 +105,13 @@ export function TeamPage() {
     return DEFAULT_TEAM;
   });
 
-  // Track hover state only (no click triggering)
+  // Selected member index (null by default so About Project is shown initially)
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  // Edit details modal state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingForm, setEditingForm] = useState<TeamMember | null>(null);
 
   // Screen width for responsive fan spread
   const [windowWidth, setWindowWidth] = useState(() =>
@@ -116,7 +124,7 @@ export function TeamPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const spreadScale = windowWidth < 640 ? 0.52 : (windowWidth < 1024 ? 0.78 : 1.0);
+  const spreadScale = windowWidth < 400 ? 0.36 : (windowWidth < 640 ? 0.42 : (windowWidth < 1024 ? 0.72 : 1.0));
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const copyToClipboard = (text: string, fieldId: string) => {
@@ -125,16 +133,43 @@ export function TeamPage() {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Active member is purely determined by hover (clicking does not trigger any state)
-  const activeMember = hoveredIndex !== null ? teamMembers[hoveredIndex] : null;
+  const handleSaveMember = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingForm) return;
+    const updated = teamMembers.map((m) => (m.id === editingForm.id ? editingForm : m));
+    setTeamMembers(updated);
+    try {
+      localStorage.setItem('agrigenius_team_members', JSON.stringify(updated));
+    } catch (err) {
+      console.error(err);
+    }
+    setIsEditing(false);
+  };
+
+  const handleResetDefaults = () => {
+    if (confirm('Reset all team details back to original defaults?')) {
+      setTeamMembers(DEFAULT_TEAM);
+      try {
+        localStorage.removeItem('agrigenius_team_members');
+      } catch (err) {
+        console.error(err);
+      }
+      setIsEditing(false);
+    }
+  };
+
+  // Active member: hover takes temporary precedence, otherwise selectedIndex (null means About Project)
+  const activeMemberIndex = hoveredIndex !== null ? hoveredIndex : selectedIndex;
+  const showProjectOverview = activeMemberIndex === null;
+  const activeMember = teamMembers[activeMemberIndex ?? 0];
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="h-screen max-h-screen w-full flex flex-col justify-between relative bg-slate-50 dark:bg-[#070908] text-slate-900 dark:text-neutral-100 transition-colors duration-200 overflow-hidden select-none"
+      className="min-h-[100dvh] w-full flex flex-col justify-between relative bg-slate-50 dark:bg-[#070908] text-slate-900 dark:text-neutral-100 transition-colors duration-200 overflow-y-auto sm:overflow-hidden select-none pb-20 sm:pb-0"
     >
       {/* Background Ambient Glow */}
       <div className="fixed top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[650px] h-[300px] bg-emerald-500/10 rounded-full blur-[140px] pointer-events-none" />
@@ -166,10 +201,11 @@ export function TeamPage() {
               <ThemeToggle />
               <button
                 onClick={() => navigate('/chat')}
-                className="inline-flex items-center justify-center px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 dark:bg-white dark:text-black dark:hover:bg-neutral-200 dark:shadow-none rounded-xl shadow-md shadow-emerald-600/25 transition-all cursor-pointer"
+                className="inline-flex items-center justify-center px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 dark:bg-white dark:text-black dark:hover:bg-neutral-200 dark:shadow-none rounded-xl shadow-md shadow-emerald-600/25 transition-all cursor-pointer"
               >
-                <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
-                <span>Open Assistant</span>
+                <MessageSquare className="w-3.5 h-3.5 mr-1 sm:mr-1.5" />
+                <span className="hidden sm:inline">Open Assistant</span>
+                <span className="sm:hidden">Assistant</span>
               </button>
             </div>
           </div>
@@ -209,27 +245,34 @@ export function TeamPage() {
             <div className="relative flex items-center justify-center">
               {teamMembers.map((member, index) => {
                 const cfg = FAN_CONFIG[index] || { rotate: 0, y: 0, x: 0, z: index * 10 };
-                const isActive = hoveredIndex === index;
+                const isHovered = hoveredIndex === index;
+                const isSelected = selectedIndex === index;
 
                 return (
                   <motion.div
                     key={member.id}
                     onMouseEnter={() => setHoveredIndex(index)}
+                    onClick={() => {
+                      setSelectedIndex(selectedIndex === index ? null : index);
+                      setHoveredIndex(null);
+                    }}
                     animate={{
-                      rotate: isActive ? 0 : cfg.rotate,
-                      y: isActive ? -18 : cfg.y,
+                      rotate: isHovered ? 0 : cfg.rotate,
+                      y: isHovered ? -20 : cfg.y,
                       x: cfg.x * spreadScale,
-                      scale: isActive ? 1.05 : 1,
-                      zIndex: isActive ? 45 : cfg.z,
+                      scale: isHovered ? 1.08 : (isSelected ? 1.02 : 1),
+                      zIndex: isHovered ? 50 : (isSelected ? 35 : cfg.z),
                     }}
                     transition={{
                       type: 'spring',
                       stiffness: 300,
                       damping: 24,
                     }}
-                    className={`absolute will-change-transform select-none rounded-2xl group/card transition-shadow duration-200 ${
-                      isActive 
-                        ? 'shadow-[0_20px_45px_rgba(0,0,0,0.28)] dark:shadow-[0_25px_50px_rgba(0,0,0,0.7)]' 
+                    className={`absolute will-change-transform select-none rounded-2xl group/card transition-shadow duration-200 cursor-pointer ${
+                      isHovered
+                        ? 'shadow-[0_20px_45px_rgba(0,0,0,0.35)] dark:shadow-[0_25px_50px_rgba(0,0,0,0.8)]'
+                        : isSelected
+                        ? 'shadow-lg dark:shadow-[0_14px_28px_rgba(0,0,0,0.6)]'
                         : 'shadow-md hover:shadow-xl dark:shadow-[0_12px_25px_rgba(0,0,0,0.5)]'
                     }`}
                     style={{
@@ -237,7 +280,11 @@ export function TeamPage() {
                     }}
                   >
                     {/* POLAROID WHITE FRAME CONTAINER */}
-                    <div className="w-[138px] sm:w-[155px] bg-white text-neutral-900 p-2 sm:p-2.5 pb-2.5 sm:pb-3 rounded-2xl border border-neutral-200/90 shadow-sm transition-all relative">
+                    <div className={`w-[115px] sm:w-[138px] md:w-[155px] bg-white text-neutral-900 p-1.5 sm:p-2.5 pb-2 sm:pb-3 rounded-2xl border transition-all relative ${
+                      isSelected 
+                        ? 'border-emerald-500 shadow-sm ring-2 ring-emerald-500/30' 
+                        : 'border-neutral-200/90 shadow-sm'
+                    }`}>
                       {/* Photo: Clear unobstructed portrait frame */}
                       <div className="w-full aspect-[4/5] rounded-xl overflow-hidden bg-slate-900 relative">
                         <img
@@ -261,15 +308,53 @@ export function TeamPage() {
             </div>
           </div>
 
+          {/* Quick Switcher Pills for Instant Mobile & Desktop Navigation */}
+          <div className="flex items-center justify-center gap-1 sm:gap-1.5 flex-wrap my-2 max-w-xl mx-auto px-2">
+            {teamMembers.map((m, idx) => {
+              const isSelected = activeMemberIndex === idx;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedIndex(selectedIndex === idx ? null : idx);
+                    setHoveredIndex(null);
+                  }}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-emerald-600 text-white shadow-sm dark:bg-white dark:text-black font-bold scale-105'
+                      : 'bg-white/80 dark:bg-neutral-900/80 text-slate-600 dark:text-neutral-400 border border-slate-200/80 dark:border-neutral-800 hover:bg-slate-100 dark:hover:bg-neutral-800'
+                  }`}
+                >
+                  <span>{m.name.split(' ')[0]}</span>
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedIndex(null);
+                setHoveredIndex(null);
+              }}
+              className={`px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+                showProjectOverview
+                  ? 'bg-emerald-600 text-white dark:bg-white dark:text-black font-bold border-transparent scale-105'
+                  : 'bg-slate-100 dark:bg-neutral-800 border-slate-200/80 dark:border-neutral-700 text-slate-500 dark:text-neutral-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              About Project
+            </button>
+          </div>
+
           {/* =========================================================================
               BOTTOM MIDDLE SHOWCASE:
-              - When NO card is active: Displays Project Overview.
-              - When a card IS active: Displays that Member's details (Name, Role, Roll No, Branch, Phone).
+              - Always shows activeMember details by default
+              - If user taps "About Project", displays project overview
              ========================================================================= */}
-          <div className="w-full max-w-2xl mx-auto flex items-center justify-center mt-3">
+          <div className="w-full max-w-2xl mx-auto flex items-center justify-center mt-1">
             <AnimatePresence mode="wait">
-              {!activeMember ? (
-                /* DEFAULT VIEW: PROJECT DESCRIPTION */
+              {showProjectOverview ? (
+                /* PROJECT DESCRIPTION */
                 <motion.div
                   key="project-overview"
                   initial={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -288,10 +373,6 @@ export function TeamPage() {
                         About AgriGenius AI
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-400 dark:text-neutral-500 flex items-center gap-1">
-                      <Info className="w-3 h-3 text-emerald-500 dark:text-white" />
-                      Hover over any card above to inspect
-                    </span>
                   </div>
 
                   <div className="py-2">
@@ -304,7 +385,7 @@ export function TeamPage() {
                   </div>
                 </motion.div>
               ) : (
-                /* ACTIVE HOVERED MEMBER DETAILS */
+                /* ACTIVE MEMBER DETAILS (SHOWN BY DEFAULT) */
                 <motion.div
                   key={activeMember.id}
                   initial={{ opacity: 0, y: 10, scale: 0.98 }}
@@ -316,7 +397,7 @@ export function TeamPage() {
                   {/* Top ambient highlight line */}
                   <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-500/80 dark:via-white/40 to-transparent" />
 
-                  {/* Top Header: Name & Role Pill */}
+                  {/* Top Header: Name, Role Pill & Edit Button */}
                   <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-neutral-800/80">
                     <div className="flex items-center space-x-2.5 min-w-0">
                       <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 border border-emerald-500/40 dark:border-white/40">
@@ -332,6 +413,20 @@ export function TeamPage() {
                         </span>
                       </div>
                     </div>
+
+                    {/* Edit Details Action Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingForm({ ...activeMember });
+                        setIsEditing(true);
+                      }}
+                      className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-neutral-800 hover:bg-emerald-100 dark:hover:bg-neutral-700 text-emerald-700 dark:text-white text-xs font-semibold border border-emerald-200/80 dark:border-neutral-700 transition-all cursor-pointer shrink-0 shadow-sm"
+                      title="Edit this member's details"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-emerald-600 dark:text-white" />
+                      <span>Edit</span>
+                    </button>
                   </div>
 
                   {/* Middle Grid: Roll Number, Branch, Phone */}
@@ -401,7 +496,7 @@ export function TeamPage() {
                     </div>
                   </div>
 
-                  {/* Bio summary: only display when member has actual non-empty bio text */}
+                  {/* Bio summary */}
                   {activeMember.bio && activeMember.bio.trim().length > 0 && (
                     <div className="pt-2 border-t border-slate-100 dark:border-neutral-800/80 text-[11px] text-slate-500 dark:text-neutral-400 leading-relaxed italic truncate">
                       &ldquo;{activeMember.bio.trim()}&rdquo;
@@ -413,6 +508,138 @@ export function TeamPage() {
           </div>
         </div>
       </main>
+
+      {/* EDIT MEMBER DETAILS MODAL */}
+      <AnimatePresence>
+        {isEditing && editingForm && (
+          <div 
+            className="fixed inset-0 z-[10002] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+            onClick={() => setIsEditing(false)}
+          >
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-neutral-800 pb-3">
+                <div className="flex items-center space-x-2">
+                  <div className="p-2 rounded-xl bg-emerald-50 dark:bg-neutral-800 text-emerald-600 dark:text-white">
+                    <Edit3 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 dark:text-white">Edit Member Details</h3>
+                    <p className="text-xs text-slate-400 dark:text-neutral-500">Update roll number, branch, phone, or role</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-neutral-800 text-slate-400 hover:text-slate-800 dark:hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveMember} className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-neutral-400 block mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={editingForm.name}
+                    onChange={(e) => setEditingForm({ ...editingForm, name: e.target.value })}
+                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/80 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-neutral-400 block mb-1">Roll Number</label>
+                    <input
+                      type="text"
+                      value={editingForm.rollNumber}
+                      onChange={(e) => setEditingForm({ ...editingForm, rollNumber: e.target.value })}
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/80 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-neutral-400 block mb-1">Phone Number</label>
+                    <input
+                      type="text"
+                      value={editingForm.phoneNumber}
+                      onChange={(e) => setEditingForm({ ...editingForm, phoneNumber: e.target.value })}
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/80 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-neutral-400 block mb-1">Branch / Specialization</label>
+                  <input
+                    type="text"
+                    value={editingForm.branch}
+                    onChange={(e) => setEditingForm({ ...editingForm, branch: e.target.value })}
+                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/80 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-neutral-400 block mb-1">Project Role</label>
+                  <input
+                    type="text"
+                    value={editingForm.role}
+                    onChange={(e) => setEditingForm({ ...editingForm, role: e.target.value })}
+                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/80 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 dark:text-neutral-400 block mb-1">Bio Summary</label>
+                  <textarea
+                    rows={2}
+                    value={editingForm.bio}
+                    onChange={(e) => setEditingForm({ ...editingForm, bio: e.target.value })}
+                    className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/80 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-neutral-800">
+                  <button
+                    type="button"
+                    onClick={handleResetDefaults}
+                    className="inline-flex items-center space-x-1 text-xs text-red-500 hover:text-red-600 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reset Defaults</span>
+                  </button>
+
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-700 text-xs font-semibold text-slate-600 dark:text-neutral-300 hover:bg-slate-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 dark:bg-white dark:text-black text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/20 dark:shadow-none cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Save Details</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Spacing for fixed GlobalBottomNav */}
       <div className="h-14 w-full shrink-0 pointer-events-none" />

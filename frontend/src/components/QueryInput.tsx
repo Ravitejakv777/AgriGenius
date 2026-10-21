@@ -97,8 +97,8 @@ export function QueryInput({ onSend, disabled }: QueryInputProps) {
             <textarea
               rows={1}
               style={{ boxShadow: 'none' }}
-              className="block w-full resize-none border-transparent focus:border-transparent focus:ring-0 outline-none bg-transparent py-3 pl-4 pr-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-neutral-500 text-xs sm:text-sm leading-relaxed min-h-[46px] max-h-[120px]"
-              placeholder={isListening ? "Listening... Speak your crop question" : "Ask a farming question in English or हिन्दी..."}
+              className="block flex-1 min-w-0 resize-none border-transparent focus:border-transparent focus:ring-0 outline-none bg-transparent py-3 pl-3.5 sm:pl-4 pr-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-neutral-500 text-xs sm:text-sm leading-relaxed min-h-[46px] max-h-[120px]"
+              placeholder={isListening ? "Listening... Speak now" : "Ask a farming question in English or हिन्दी..."}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);

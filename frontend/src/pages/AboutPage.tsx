@@ -22,35 +22,35 @@ export function AboutPage() {
 
       <div className="relative z-10 flex flex-col min-h-screen">
       {/* Header */}
-      <header className="bg-white dark:bg-black border-b border-slate-200 dark:border-neutral-800 px-8 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+      <header className="bg-white dark:bg-black border-b border-slate-200 dark:border-neutral-800 px-4 sm:px-8 py-3.5 sm:py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div 
-          className="flex items-center space-x-3 cursor-pointer"
+          className="flex items-center space-x-2.5 sm:space-x-3 cursor-pointer"
           onClick={() => navigate('/')}
         >
-          <div className="bg-primary-600 dark:bg-white dark:text-black p-2 rounded-lg">
-            <Leaf className="w-5 h-5 text-white dark:text-black" />
+          <div className="bg-primary-600 dark:bg-white dark:text-black p-1.5 sm:p-2 rounded-lg">
+            <Leaf className="w-4 h-4 sm:w-5 sm:h-5 text-white dark:text-black" />
           </div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">AgriGenius</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white tracking-tight">AgriGenius</h1>
         </div>
         <div className="flex items-center space-x-3">
           <ThemeToggle />
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-8 py-12 pb-24">
+      <main className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-12 pb-28">
         {/* Hero Section */}
-        <div className="text-center mb-16 max-w-3xl mx-auto">
-          <h2 className="text-4xl font-extrabold text-slate-900 dark:text-white mb-6 tracking-tight">
+        <div className="text-center mb-8 sm:mb-16 max-w-3xl mx-auto">
+          <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-900 dark:text-white mb-3 sm:mb-6 tracking-tight">
             Empowering Farmers with <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-400 dark:from-white dark:to-neutral-400">Grounded AI</span>
           </h2>
-          <p className="text-lg text-slate-600 dark:text-neutral-400 leading-relaxed">
+          <p className="text-sm sm:text-lg text-slate-600 dark:text-neutral-400 leading-relaxed">
             AgriGenius is a bilingual AI farming assistant powered by a Retrieval-Augmented Generation (RAG) architecture. 
             By leveraging real, vetted advisory records from the Kisan Call Centre (KCC), we provide highly accurate, locally relevant answers to Indian farmers in both English and Hindi.
           </p>
         </div>
 
         {/* Feature Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-16">
           <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-slate-200 dark:border-neutral-800 shadow-sm flex flex-col items-center text-center">
             <div className="bg-primary-50 dark:bg-white/10 p-3 rounded-full mb-4">
               <Server className="w-6 h-6 text-primary-600 dark:text-white" />
