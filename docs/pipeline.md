@@ -1,105 +1,54 @@
 # AgriGenius Product Pipeline
 
-## Overall Product Flow
+## Offline Corpus and Index
+
+The current local artifacts form this verified path:
 
 ```text
-Farmer query
-  -> Language/input handling
-  -> Query embedding
-  -> ChromaDB retrieval from cleaned KCC corpus
-  -> Crop/query-type metadata filtering
-  -> Candidate filtering and MMR-style duplicate reduction
-  -> Grounded prompt construction
-  -> Gemini LLM answer generation
-  -> Same-language farmer response
-  -> Source display and uncertainty message
-  -> Evaluation and feedback logging
+KCC source exports
+  -> pooled and cleaned source files
+  -> kcc_index_ready_final.csv (493,213 rows)
+  -> l3cube-pune/indic-sentence-bert-nli
+  -> normalized 768-dimensional embeddings
+  -> ChromaDB cosine collection: kcc_agri_advisor (493,213 vectors)
 ```
 
-## Offline Data Pipeline
+The Kaggle build procedure is recorded in `nlp-run1.ipynb`. Its output records 493,213 input rows and 1,927 completed batches using the Indic sentence model. The local index agrees with that count and model. The index builder records the model ID, output dimension, normalization, metric, source row count, and a SHA-256 fingerprint; its resume checkpoint also checks model and corpus fingerprint before skipping batches.
+
+The index collection contains advisory text and crop, district, state, query type, sector, and date metadata. The final CSV's `language` column is empty, so script presence in text must not be represented as a complete language annotation.
+
+## Online RAG Path
 
 ```text
-Raw KCC CSV files
-  -> Pool state/year files
-  -> Clean whitespace and malformed values
-  -> Drop unusable columns such as Season
-  -> Remove short or empty KccAns values
-  -> Remove corrupted Sector rows
-  -> Exclude Weather query type
-  -> Apply recency cutoff for Government Schemes
-  -> Collapse exact duplicate KccAns values
-  -> Strip PII-sensitive rows
-  -> Remove weather-heavy Sowing Time and Weather rows
-  -> Save final corpus
-  -> Embed KccAns values
-  -> Store vectors and metadata in ChromaDB
+Hindi / Telugu / English farmer question
+  -> Indic sentence embedding
+  -> cosine retrieval from ChromaDB (fetch-k candidates)
+  -> remove likely question-only rows and near duplicates
+  -> BAAI/bge-reranker-v2-m3 cross-encoder reranking
+  -> top-k KCC passages and metadata
+  -> Gemini 3.6 Flash or Hugging Face Llama 3.1 8B generation
+  -> SSE answer chunks with source metadata
 ```
 
-Local output files:
+The prompt requires answers to stay within the retrieved KCC context, cite source ranks, use the query language when possible, and abstain when evidence is insufficient. Provider errors are surfaced through the API; they are not returned as generated answer text.
 
-- `kcc_pooled.csv`
-- `kcc_index_ready.csv`
-- `kcc_index_ready_final.csv`
-- `chroma_kcc_db/`
+## API and Frontend
 
-These files are intentionally ignored by Git because they are large local artifacts.
+- `GET /api/health` reports the live collection size and configured embedding, reranker, and generation models.
+- `POST /api/chat` returns a complete answer and source list.
+- `POST /api/chat/stream` sends source metadata and answer chunks as SSE.
+- `POST /api/llm/compare` retrieves once, runs both configured generators on identical evidence, records generation latency, and optionally scores each response with RAGAS.
+- `POST /api/explain` applies LIME text perturbations to explain one BGE reranker score for the requested ranked passage.
+- The `/evaluation` UI shows the two live answer outputs, timings, faithfulness, answer relevance, and an explicitly labeled unsupported-claim proxy.
+- `python evaluate_llms.py --query-file demo_queries.json` runs the same dual-model comparison over the query file and writes per-case results plus per-language/provider summaries to `llm_evaluation_results.json`.
+- Vite proxies `/api` to `http://127.0.0.1:8000` during development.
+- When the backend is unavailable, the frontend reports that state and shows an error on chat requests. It does not show hard-coded sample answers or citations as grounded output.
+- Set `AGRI_CORS_ORIGINS` for deployment origins. The local defaults allow the Vite development origin.
 
-## Online RAG Pipeline
+## Validation Status
 
-```text
-User asks a question in Hindi or English
-  -> Encode query with l3cube-pune/hindi-sentence-bert-nli
-  -> Infer crop/query-type filters when the query is explicit
-  -> Retrieve candidate advisory records from ChromaDB
-  -> Remove obvious non-answer rows
-  -> Reduce near-duplicate source flooding
-  -> Select diverse top-k sources
-  -> Build context block with KCC answer text and metadata
-  -> Send grounded prompt to Gemini
-  -> Generate concise practical response
-  -> Return answer in the same language as the user query
-```
+Local record counts, sampled corpus/index alignment, Chroma cosine configuration, provenance metadata, and the frontend production build have been checked. Retrieval quality across languages, abstention under live generation, provider behavior, and deployment remain pending an online end-to-end validation run. The small demo query set is a smoke check, not a benchmark.
 
-## LLM Module Design
+Install `lime` for the source-card explanations and `ragas` for model quality scores. RAGAS scoring uses `GEMINI_API_KEY`, `AGRI_EVAL_JUDGE_MODEL` (default `gemini-3.8-flash`), and Google `gemini-embedding-001` embeddings. If generation or judge credentials/network access are absent, output/status shows the failure or pending score; no score is substituted. The displayed unsupported-claim rate is `1 - faithfulness`, a proxy rather than a separate hallucination classifier.
 
-### Technology View
-
-- Embedding model: `l3cube-pune/hindi-sentence-bert-nli`
-- Vector database: ChromaDB
-- Generation model: Gemini through `google-genai`
-- Retrieval count: top-k retrieval, currently `TOP_K = 5`
-- Candidate fetch count before filtering/diversification, currently `DEFAULT_FETCH_K = 20`
-- Prompt inputs:
-  - Farmer query
-  - Retrieved KCC answer passages
-  - Crop metadata
-  - District metadata
-  - Query type metadata
-- System instruction:
-  - Answer only from retrieved context
-  - Keep response practical and concise
-  - Use the same language as the farmer query
-  - Say when evidence is insufficient
-
-### Functional View
-
-The LLM module is designed to act as a grounded agricultural advisor rather than a free-form chatbot. It does not directly answer from memory. Instead, it receives retrieved expert advisory passages and converts them into a clear farmer-facing response.
-
-Expected behavior:
-
-- Provide crop-specific, practical guidance.
-- Avoid unsupported recommendations.
-- Preserve Hindi or English based on the user's query.
-- Keep the answer short enough for real farmer use.
-- Add uncertainty handling when retrieval evidence is weak.
-
-## Planned Product Enhancements
-
-- Streamlit UI for farmer interaction.
-- Visible source cards showing retrieved KCC passages.
-- Region filters for district/state-aware search.
-- English-Hindi retrieval fusion for stronger cross-lingual retrieval.
-- Cross-encoder reranking.
-- RAG vs non-RAG evaluation.
-- Held-out AgriSci-QA evaluation.
-- Voice input and voice output.
+Run `python evaluate_retrieval.py --top-k 5 --fetch-k 20` for per-language crop/category hit rates and `python evaluate_abstention.py --provider gemini` for the unsupported Mars cultivation prompt. These require the embedding and reranker models; the abstention check also requires provider credentials.

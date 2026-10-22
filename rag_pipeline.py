@@ -30,10 +30,11 @@ from huggingface_hub import InferenceClient
 
 CHROMA_DB_PATH = "./chroma_kcc_db"
 COLLECTION_NAME = "kcc_agri_advisor"
-EMBED_MODEL_NAME = "l3cube-pune/hindi-sentence-bert-nli"
-CROSS_ENCODER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-LLM_MODEL_NAME = "gemini-3.5-flash"
+EMBED_MODEL_NAME = "l3cube-pune/indic-sentence-bert-nli"
+CROSS_ENCODER_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
+LLM_MODEL_NAME = os.environ.get("AGRI_GEMINI_MODEL", "gemini-3.6-flash")
 LLAMA_MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+EVALUATION_JUDGE_MODEL = os.environ.get("AGRI_EVAL_JUDGE_MODEL", "gemini-3.8-flash")
 DEFAULT_TOP_K = 5
 DEFAULT_FETCH_K = 20
 MMR_LAMBDA = 0.72
@@ -231,6 +232,26 @@ class AgriGeniusRAG:
         self.cross_encoder = CrossEncoder(cross_encoder_name)
         self.chroma_client = chromadb.PersistentClient(path=chroma_path)
         self.collection = self.chroma_client.get_collection(collection_name)
+        index_metadata = self.collection.metadata or {}
+        indexed_model = index_metadata.get("embedding_model")
+        if indexed_model != embed_model_name:
+            raise RuntimeError(
+                f"Chroma collection {collection_name!r} records embedding model "
+                f"{indexed_model!r}; runtime requested {embed_model_name!r}. "
+                "Rebuild or explicitly verify and annotate the collection before serving queries."
+            )
+        expected_dimensions = index_metadata.get("embedding_dimension")
+        actual_dimensions = self.embedding_model.get_sentence_embedding_dimension()
+        if expected_dimensions and expected_dimensions != actual_dimensions:
+            raise RuntimeError(
+                f"Chroma index dimension {expected_dimensions} does not match "
+                f"embedding model dimension {actual_dimensions}."
+            )
+        if index_metadata.get("normalized_embeddings") is not True:
+            raise RuntimeError("Chroma collection metadata does not confirm normalized embeddings.")
+        distance_metric = self.collection.configuration.get("hnsw", {}).get("space")
+        if distance_metric != "cosine":
+            raise RuntimeError(f"Chroma collection must use cosine distance; found {distance_metric!r}.")
 
     def collection_count(self) -> int:
         return self.collection.count()
@@ -281,7 +302,9 @@ class AgriGeniusRAG:
             pairs = [(query, item["text"]) for item in candidates]
             scores = self.cross_encoder.predict(pairs)
             for i, score in enumerate(scores):
-                candidates[i]["similarity"] = float(score)  # Overwrite with CE score
+                # BGE reranker returns logits; map them to a bounded display score.
+                clipped_score = float(np.clip(score, -60.0, 60.0))
+                candidates[i]["similarity"] = 1.0 / (1.0 + np.exp(-clipped_score))
             candidates.sort(key=lambda x: x["similarity"], reverse=True)
             selected = candidates[:top_k]
         elif use_mmr and candidates and candidates[0]["embedding"] is not None:
@@ -356,18 +379,18 @@ Answer:"""
         if llm_provider == "llama":
             hf_token = os.environ.get("HF_TOKEN")
             if not hf_token:
-                return "Error: HF_TOKEN environment variable is not set for Llama 3 access."
+                raise RuntimeError("HF_TOKEN environment variable is not set for Llama 3 access.")
             client = InferenceClient(model=self.llama_model_name, token=hf_token)
             messages = [
                 {"role": "system", "content": SYSTEM_INSTRUCTION},
                 {"role": "user", "content": prompt}
             ]
             try:
-                response = client.chat_completion(messages=messages, stream=False, max_tokens=500, temperature=0.2)
+                response = client.chat_completion(messages=messages, stream=False, max_tokens=500, temperature=0.0)
                 return response.choices[0].message.content or ""
             except Exception as e:
-                return f"Error calling Llama 3: {e}"
-        else:
+                raise RuntimeError(f"Error calling Llama 3: {e}") from e
+        elif llm_provider == "gemini":
             api_key = os.environ.get("GEMINI_API_KEY")
             if not api_key:
                 raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
@@ -376,9 +399,158 @@ Answer:"""
             response = client.models.generate_content(
                 model=self.llm_model_name,
                 contents=prompt,
-                config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
+                config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION, temperature=0.0),
             )
             return response.text or ""
+        else:
+            raise ValueError(f"Unsupported LLM provider: {llm_provider!r}")
+
+    def explain_source_relevance(
+        self,
+        query: str,
+        source: RetrievedSource,
+        num_samples: int = 64,
+        num_features: int = 8,
+    ) -> dict[str, Any]:
+        """Explain one reranker score with local LIME token perturbations."""
+        try:
+            from lime.lime_text import LimeTextExplainer
+        except ImportError as error:
+            raise RuntimeError("LIME explainability is unavailable; install the `lime` requirement.") from error
+
+        if not query.strip():
+            raise ValueError("A non-empty question is required for an explanation.")
+
+        def predict_relevance(queries: list[str]) -> np.ndarray:
+            pairs = [(item or " ", source.text) for item in queries]
+            logits = np.asarray(self.cross_encoder.predict(pairs), dtype=float).reshape(-1)
+            logits = np.clip(logits, -60.0, 60.0)
+            positive_probability = 1.0 / (1.0 + np.exp(-logits))
+            return np.column_stack((1.0 - positive_probability, positive_probability))
+
+        explainer = LimeTextExplainer(
+            class_names=["lower relevance", "higher relevance"],
+            split_expression=r"\W+",
+            bow=True,
+            random_state=41,
+        )
+        explanation = explainer.explain_instance(
+            query,
+            predict_relevance,
+            labels=(1,),
+            num_features=num_features,
+            num_samples=num_samples,
+        )
+        full_score = float(predict_relevance([query])[0, 1])
+        weights = [
+            {"token": token, "weight": float(weight)}
+            for token, weight in explanation.as_list(label=1)
+        ]
+        return {
+            "method": "LIME text perturbation",
+            "target": "BGE cross-encoder relevance for the selected KCC passage",
+            "source_rank": source.rank,
+            "reranker_score": full_score,
+            "num_samples": num_samples,
+            "feature_weights": weights,
+            "note": "Positive weights raised the local relevance prediction; negative weights lowered it. This explains the reranker score, not the generated answer's factual correctness.",
+        }
+
+    def compare_models(self, query: str, top_k: int = DEFAULT_TOP_K) -> dict[str, Any]:
+        """Run both configured answer models on identical retrieved evidence and score with RAGAS."""
+        import time
+
+        sources = self.retrieve_sources(query, top_k=top_k)
+        source_payload = [
+            {
+                "rank": source.rank,
+                "text": source.text,
+                "similarity": source.similarity,
+                "metadata": source.metadata,
+            }
+            for source in sources
+        ]
+        model_specs = [
+            ("gemini", self.llm_model_name),
+            ("llama", self.llama_model_name),
+        ]
+        results: list[dict[str, Any]] = []
+        for provider, model_name in model_specs:
+            started = time.perf_counter()
+            try:
+                answer = self.generate_answer(query, sources, llm_provider=provider)
+                if not answer.strip():
+                    raise RuntimeError("The provider returned an empty answer.")
+                results.append({
+                    "provider": provider,
+                    "model": model_name,
+                    "status": "ok",
+                    "answer": answer,
+                    "generation_latency_ms": round((time.perf_counter() - started) * 1000),
+                    "answer_characters": len(answer),
+                })
+            except Exception as error:
+                results.append({
+                    "provider": provider,
+                    "model": model_name,
+                    "status": "error",
+                    "answer": None,
+                    "generation_latency_ms": round((time.perf_counter() - started) * 1000),
+                    "error": str(error),
+                })
+
+        evaluation_status = "skipped_no_context" if not sources else "skipped_no_successful_generation"
+        judge_model = EVALUATION_JUDGE_MODEL
+        if sources and any(item["status"] == "ok" for item in results):
+            try:
+                from ragas.embeddings import GoogleEmbeddings
+                from ragas.llms import llm_factory
+                from ragas.metrics.collections import AnswerRelevancy, Faithfulness
+
+                api_key = os.environ.get("GEMINI_API_KEY")
+                if not api_key:
+                    raise RuntimeError("GEMINI_API_KEY is required for the RAGAS judge.")
+                judge_client = genai.Client(api_key=api_key)
+                judge_llm = llm_factory(judge_model, provider="google", client=judge_client, temperature=0.0)
+                judge_embeddings = GoogleEmbeddings(client=judge_client, model="gemini-embedding-001")
+                faithfulness_metric = Faithfulness(llm=judge_llm)
+                relevancy_metric = AnswerRelevancy(llm=judge_llm, embeddings=judge_embeddings)
+                contexts = [source.text for source in sources]
+                for item in results:
+                    if item["status"] != "ok":
+                        continue
+                    faithfulness_raw = faithfulness_metric.score(
+                        user_input=query, response=item["answer"], retrieved_contexts=contexts
+                    ).value
+                    answer_relevancy_raw = relevancy_metric.score(
+                        user_input=query, response=item["answer"]
+                    ).value
+                    faithfulness = float(faithfulness_raw) if faithfulness_raw is not None and np.isfinite(faithfulness_raw) else None
+                    answer_relevancy = float(answer_relevancy_raw) if answer_relevancy_raw is not None and np.isfinite(answer_relevancy_raw) else None
+                    item["metrics"] = {
+                        "faithfulness": faithfulness,
+                        "answer_relevancy": answer_relevancy,
+                        "unsupported_claim_rate_proxy": 1.0 - faithfulness if faithfulness is not None else None,
+                    }
+                evaluation_status = "ok"
+            except Exception as error:
+                evaluation_status = "error"
+                for item in results:
+                    if item["status"] == "ok":
+                        item["evaluation_error"] = str(error)
+
+        return {
+            "query": query,
+            "models": results,
+            "sources": source_payload,
+            "source_count": len(sources),
+            "evaluation": {
+                "framework": "RAGAS",
+                "judge_model": judge_model,
+                "status": evaluation_status,
+                "hallucination_measure": "Unsupported-claim-rate proxy = 1 - RAGAS faithfulness; not an independent hallucination classifier.",
+            },
+        }
 
     def answer_query(
         self,
@@ -408,20 +580,21 @@ Answer:"""
 
         if llm_provider == "llama":
             yield from self._generate_stream_llama(prompt)
-        else:
+        elif llm_provider == "gemini":
             yield from self._generate_stream_gemini(prompt)
+        else:
+            raise ValueError(f"Unsupported LLM provider: {llm_provider!r}")
 
     def _generate_stream_gemini(self, prompt: str):
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
-            yield "Error: GEMINI_API_KEY environment variable is not set."
-            return
+            raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
 
         client = genai.Client(api_key=api_key)
         response_stream = client.models.generate_content_stream(
             model=self.llm_model_name,
             contents=prompt,
-            config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
+            config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION, temperature=0.0),
         )
         for chunk in response_stream:
             if chunk.text:
@@ -430,8 +603,7 @@ Answer:"""
     def _generate_stream_llama(self, prompt: str):
         hf_token = os.environ.get("HF_TOKEN")
         if not hf_token:
-            yield "Error: HF_TOKEN environment variable is not set for Llama 3 access."
-            return
+            raise RuntimeError("HF_TOKEN environment variable is not set for Llama 3 access.")
             
         client = InferenceClient(model=self.llama_model_name, token=hf_token)
         messages = [
@@ -439,12 +611,12 @@ Answer:"""
             {"role": "user", "content": prompt}
         ]
         try:
-            stream = client.chat_completion(messages=messages, stream=True, max_tokens=500, temperature=0.2)
+            stream = client.chat_completion(messages=messages, stream=True, max_tokens=500, temperature=0.0)
             for chunk in stream:
                 if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
         except Exception as e:
-            yield f"Error calling Llama 3: {e}"
+            raise RuntimeError(f"Error calling Llama 3: {e}") from e
 
     def answer_query_stream(
         self,

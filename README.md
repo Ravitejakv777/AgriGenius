@@ -1,64 +1,25 @@
 # AgriGenius
 
-AgriGenius is an English-Hindi farming assistant that uses Retrieval-Augmented Generation (RAG) to answer farmer queries with evidence from real Kisan Call Centre (KCC) advisory records. The project focuses on practical agricultural questions such as irrigation, pest control, sowing, fertilizer use, weed management, crop care, and government-scheme guidance.
+AgriGenius is a local RAG prototype for agricultural questions in Hindi, Telugu, and English. It retrieves evidence from Kisan Call Centre (KCC) advisories and passes selected passages to a grounded answer generator.
 
-The current prototype includes a cleaned KCC retrieval corpus, a ChromaDB vector index, and a Gemini-based answer generation pipeline. The product is being extended into a full farmer-facing assistant with a polished UI, source-backed answers, duplicate-aware retrieval, evaluation reports, and optional voice interaction.
+## Current Local Artifacts
 
-## Current Status
+- Retrieval corpus: `kcc_index_ready_final.csv` — **493,213 rows**.
+- ChromaDB collection: `chroma_kcc_db/kcc_agri_advisor` — **493,213 vectors**.
+- Embeddings: `l3cube-pune/indic-sentence-bert-nli`, 768 dimensions, normalized, cosine distance.
+- Reranker: `BAAI/bge-reranker-v2-m3` (configured; requires model access on first load).
+- Answer providers: Gemini 3.6 Flash and Hugging Face Inference API Llama 3.1 8B.
+- UI/API: React + Vite frontend and FastAPI backend, with SSE chat streaming.
 
-Implemented:
+The local Chroma collection records the embedding model, dimensions, normalization, metric, source row count, and SHA-256 fingerprint of the indexed corpus. The Kaggle build notebook `nlp-run1.ipynb` records a 493,213-row build using the same Indic model and normalized 768-dimensional vectors. The separate engineering summary's 508,072 cleaned-row figure does not match the current local corpus and should not be used as the active count.
 
-- KCC raw data pooling and exploratory analysis.
-- Cleaning pipeline for whitespace issues, missing fields, short answers, corrupted sector rows, duplicate answers, stale weather-heavy content, and PII-sensitive entries.
-- Final retrieval corpus with 347,944 cleaned advisory records.
-- ChromaDB vector index with 347,944 vectors.
-- Hindi-aware embedding model: `l3cube-pune/hindi-sentence-bert-nli`.
-- Reusable RAG pipeline: ChromaDB retrieval -> source selection -> grounded Gemini generation.
-- Source-returning retrieval output for future UI citation cards.
-- Automatic crop/query-type metadata filtering for clear farmer queries.
-- Duplicate-aware candidate filtering with MMR-style diversification.
-- Local retrieval diagnostics for cross-lingual retrieval, non-answer rows, and near-duplicate flooding.
+## Readiness
 
-Planned / in progress:
-
-- React/Vite-based modern product frontend.
-- Reranking and improved English-Hindi retrieval fusion.
-- Evaluation against non-RAG baselines and held-out agricultural QA benchmarks.
-- Voice input/output for low-literacy accessibility.
-
-## Repository Structure
-
-```text
-.
-├── clean_filter.py
-├── data_quality_recheck.py
-├── eda_analysis.py
-├── embedding.py
-├── first_analysis.py
-├── kcc_build_index.py
-├── kcc_rag_query.py
-├── kcc_strip_pii.py
-├── qualitative_retrieval_check.py
-├── rag_pipeline.py
-├── evaluate_retrieval.py
-├── demo_queries.json
-├── retrieval_diagnostics.py
-├── sowing_time_weather_spotcheck.py
-├── weather_cleanup.py
-├── weather_cleanup_check.py
-├── docs/
-│   ├── project_status.md
-│   ├── pipeline.md
-│   └── github_contribution_plan.md
-├── requirements.txt
-└── .env.example
-```
-
-Large datasets, the local ChromaDB index, virtual environments, checkpoints, and API keys are intentionally excluded from Git.
+The current state is a development prototype. The frontend build and local database integrity are checked, but live multilingual retrieval, Gemini/Hugging Face generation, and the BGE reranker still need an online end-to-end run before a public or farmer-facing deployment. The application now fails visibly when the backend is unavailable; it does not substitute sample agricultural answers.
 
 ## Setup
 
-Create and activate a virtual environment:
+Create and activate a virtual environment, then install the Python dependencies:
 
 ```bash
 python3 -m venv .venv
@@ -66,59 +27,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Set your Gemini API key:
+Set `GEMINI_API_KEY` for Gemini and the shared RAGAS judge. Set `HF_TOKEN` with Llama Inference access for the second generator. Optional model overrides are `AGRI_GEMINI_MODEL` and `AGRI_EVAL_JUDGE_MODEL`. Both `.env` and `keys.env` are ignored by Git.
+
+Run the API from the repository root:
 
 ```bash
-cp .env.example .env
+uvicorn backend.server:app --host 127.0.0.1 --port 8000
 ```
 
-Edit `.env` and add your own key:
-
-```bash
-GEMINI_API_KEY=your_key_here
-```
-
-Then export it before running the RAG script:
-
-```bash
-export GEMINI_API_KEY="your_key_here"
-```
-
-## Running The Current Prototype
-
-The current RAG prototype expects a local ChromaDB index at:
-
-```text
-./chroma_kcc_db
-```
-
-Run the built-in test queries:
-
-```bash
-python kcc_rag_query.py
-```
-
-Run retrieval only without calling Gemini:
-
-```bash
-python kcc_rag_query.py --no-llm
-```
-
-Run interactive mode:
-
-```bash
-python kcc_rag_query.py --interactive
-```
-
-Run local retrieval evaluation:
-
-```bash
-python evaluate_retrieval.py --top-k 5 --fetch-k 50
-```
-
-## Running the Frontend
-
-The React frontend requires Node.js.
+Run the frontend in a second terminal:
 
 ```bash
 cd frontend
@@ -126,19 +43,42 @@ npm install
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:5173`. Currently, it uses a mock backend.
-When the backend is ready, it should implement the following endpoints and `USE_MOCK` should be set to `false` in `src/lib/api.ts`:
+Vite proxies `/api` to `http://127.0.0.1:8000`. For a separate deployment, set `VITE_API_BASE_URL` in the frontend and `AGRI_CORS_ORIGINS` in the backend.
 
-- `GET /api/health`: Return system status.
-- `POST /api/chat`: Accept `ChatRequest` and return `ChatResponse` with grounded answer and `SourcePassage` list.
+## Build and Evaluation
 
-## Dataset Note
+Build or rebuild the Chroma index from the current local corpus with the same embedding model used by the RAG query path:
 
-The full KCC CSV files and ChromaDB index are not committed because they are large local artifacts. See `docs/pipeline.md` for the processing flow and expected local files.
+```bash
+python kcc_build_index.py
+```
 
-## Team
+The builder refuses to mix a different embedding model into an existing collection. It uses the corpus fingerprint and model ID when resuming batch checkpoints.
 
-- K V Ravi Teja - Frontend and conversational interface
-- V Mokshagnna Bramha Teja - RAG backend and Gemini integration
-- T Rushil Chakravarthy - Data pipeline and vector index construction
-- Tejasvi Senka - Evaluation, diagnostics, and safety checks
+Run local retrieval evaluation:
+
+```bash
+python evaluate_retrieval.py --top-k 5 --fetch-k 20
+```
+
+Check live generation abstention with the configured provider credentials:
+
+```bash
+python evaluate_abstention.py --provider gemini
+```
+
+The retrieval check uses a small demo set only; it is not a held-out agricultural QA benchmark. Run both checks with model access before deployment.
+
+The UI's **LLM QA** page runs Gemini and Llama against the same retrieved KCC passages and reports generation latency plus RAGAS faithfulness and answer relevance. The unsupported-claim value is clearly labeled as `1 - faithfulness`, a proxy and not a dedicated classifier. The source drawer can run LIME on demand to explain the BGE reranker's score for a selected source. See [docs/llm_evaluation_report.md](docs/llm_evaluation_report.md) for the evaluation protocol and current results status.
+
+Run a batch comparison over the multilingual smoke set and save per-case output plus language/provider averages:
+
+```bash
+python evaluate_llms.py --query-file demo_queries.json --output llm_evaluation_results.json
+```
+
+For formal evaluation, use a larger reviewed file with multiple cases per language and reference answers. Treat the checked-in demo set as exploratory only.
+
+## Data and Index Files
+
+Raw KCC files, processed CSVs, ChromaDB stores, model checkpoints, virtual environments, and credentials are local artifacts and are not committed. See [docs/pipeline.md](docs/pipeline.md) and [docs/project_status.md](docs/project_status.md) for the verified local pipeline state and remaining readiness checks.

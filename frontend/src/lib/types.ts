@@ -23,16 +23,62 @@ export type SourcePassage = {
 
 export type ChatResponse = {
   answer: string;
-  language: "hi" | "en";
+  query?: string;
+  language: "hi" | "te" | "en";
   grounded: boolean;
-  confidence: "high" | "medium" | "low";
+  confidence: "high" | "medium" | "low" | "unknown";
   sources: SourcePassage[];
+};
+
+export type ModelComparisonResult = {
+  provider: 'gemini' | 'llama';
+  model: string;
+  status: 'ok' | 'error';
+  answer: string | null;
+  generation_latency_ms: number;
+  answer_characters?: number;
+  error?: string;
+  evaluation_error?: string;
+  metrics?: {
+    faithfulness: number | null;
+    answer_relevancy: number | null;
+    unsupported_claim_rate_proxy: number | null;
+  };
+};
+
+export type ModelComparison = {
+  query: string;
+  models: ModelComparisonResult[];
+  sources: SourcePassage[];
+  source_count: number;
+  evaluation: {
+    framework: string;
+    judge_model: string;
+    status: string;
+    hallucination_measure: string;
+  };
+};
+
+export type LimeExplanation = {
+  status: string;
+  method?: string;
+  target?: string;
+  source_rank?: number;
+  reranker_score?: number;
+  num_samples?: number;
+  feature_weights?: Array<{ token: string; weight: number }>;
+  note?: string;
+  reason?: string;
 };
 
 export type HealthResponse = {
   status: string;
-  collection_count: number;
-  model: string;
+  collection_count?: number;
+  model?: string;
+  reranker?: string;
+  llm_model?: string;
+  llm_models?: { gemini?: string; llama?: string };
+  evaluation_judge?: string;
 };
 
 export type Message = {

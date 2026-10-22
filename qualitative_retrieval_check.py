@@ -3,9 +3,8 @@ qualitative_retrieval_check.py
 
 Purpose
 -------
-Sanity-check the WINNING embedding model (l3cube-pune/hindi-sentence-bert-nli)
-before committing ~30 min of wall-clock time to embedding the full 363K-row
-kcc_index_ready.csv.
+Sanity-check the selected multilingual embedding model
+(l3cube-pune/indic-sentence-bert-nli) against a sample of KCC records.
 
 Why this exists
 ---------------
@@ -13,13 +12,12 @@ The recall@k self-retrieval benchmark uses QueryText (a short, agent-written
 CATEGORY LABEL like "Farmer asked query on Weather") as the query, and KccAns
 as the passage. Many unrelated rows share near-identical QueryText strings, so
 low recall@k may reflect that the query text carries little distinguishing
-signal -- NOT that the model is bad at real Hindi/English retrieval.
+signal -- NOT that the model is bad at Hindi, Telugu, or English retrieval.
 
 This script sidesteps that ambiguity: instead of trusting a single recall
-number, it lets you eyeball whether retrieved answers are thematically
-sensible (right crop/topic) for a handful of real rows. If the top-5 results
-look reasonable even when they don't hit the "official" paired row, that's a
-green light to proceed with the full-corpus index.
+number, it lets you inspect whether retrieved answers are thematically
+sensible (right crop/topic) for a handful of real rows. It is a qualitative
+spot check, not an evaluation benchmark.
 
 Usage
 -----
@@ -31,9 +29,9 @@ import pandas as pd
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-MODEL_NAME = "l3cube-pune/hindi-sentence-bert-nli"
-CSV_PATH = "kcc_index_ready.csv"
-CORPUS_SAMPLE_SIZE = 2000   # subset to search against (fast local check, not the full 363K)
+MODEL_NAME = "l3cube-pune/indic-sentence-bert-nli"
+CSV_PATH = "kcc_index_ready_final.csv"
+CORPUS_SAMPLE_SIZE = 2000   # subset to search against the current 493K-row corpus
 NUM_QUERIES = 15            # how many sample queries to print results for
 TOP_K = 5
 

@@ -192,14 +192,15 @@ export function ChatMessage({ message, onOpenSources }: ChatMessageProps) {
                 )}
               </button>
 
-              {/* Grounded Badge */}
-              <div className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-neutral-900 text-emerald-700 dark:text-white border border-emerald-200 dark:border-neutral-800 text-[10px] font-mono font-bold">
-                <ShieldCheck className="w-3 h-3 text-emerald-500 dark:text-white" />
-                <span>KCC Verified</span>
-              </div>
+              {message.responseDetails?.grounded && (
+                <div className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-neutral-900 text-emerald-700 dark:text-white border border-emerald-200 dark:border-neutral-800 text-[10px] font-mono font-bold">
+                  <ShieldCheck className="w-3 h-3 text-emerald-500 dark:text-white" />
+                  <span>KCC Sources Retrieved</span>
+                </div>
+              )}
 
               {/* Sources link if available */}
-              {onOpenSources && (
+              {onOpenSources && message.responseDetails?.sources?.length ? (
                 <button
                   type="button"
                   onClick={onOpenSources}
@@ -208,7 +209,7 @@ export function ChatMessage({ message, onOpenSources }: ChatMessageProps) {
                   <FileText className="w-3 h-3 text-emerald-500 dark:text-neutral-300" />
                   <span>Inspect Sources</span>
                 </button>
-              )}
+              ) : null}
             </div>
           )}
 
@@ -216,7 +217,7 @@ export function ChatMessage({ message, onOpenSources }: ChatMessageProps) {
           {message.responseDetails && !message.responseDetails.grounded && (
             <div className="flex items-center text-amber-700 dark:text-white bg-amber-50 dark:bg-neutral-900 px-3.5 py-2 rounded-xl border border-amber-200 dark:border-neutral-800 text-xs">
               <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0 text-amber-500 dark:text-white" />
-              <p>Insufficient evidence in KCC database. Answer may not be fully grounded.</p>
+              <p>No KCC source evidence was returned for this answer.</p>
             </div>
           )}
         </div>

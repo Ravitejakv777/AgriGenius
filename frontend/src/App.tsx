@@ -9,6 +9,7 @@ import { AuthPage } from './pages/AuthPage';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { ProfilePage } from './pages/ProfilePage';
 import { AuthProvider } from './context/AuthContext';
+import { EvaluationPage } from './pages/EvaluationPage';
 import { GlobalBottomNav } from './components/GlobalBottomNav';
 
 function AnimatedRoutes() {
@@ -22,6 +23,7 @@ function AnimatedRoutes() {
         <Route path="/report" element={<ReportPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/metrics" element={<AboutPage />} />
+        <Route path="/evaluation" element={<EvaluationPage />} />
         <Route path="/team" element={<TeamPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/auth" element={<AuthPage />} />

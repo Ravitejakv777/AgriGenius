@@ -34,5 +34,17 @@
     "expected_crop": "Onion",
     "expected_query_type": "Weed Management",
     "language": "English"
+  },
+  {
+    "query": "వరి పంటలో ఆకు ముడత తెగులు నివారణ ఎలా చేయాలి?",
+    "expected_crop": "Paddy",
+    "expected_query_type": "Plant Protection",
+    "language": "Telugu"
+  },
+  {
+    "query": "వేరుశెనగ పంటలో విత్తన మోతాదు ఎంత?",
+    "expected_crop": "Groundnut",
+    "expected_query_type": "Seeds",
+    "language": "Telugu"
   }
 ]

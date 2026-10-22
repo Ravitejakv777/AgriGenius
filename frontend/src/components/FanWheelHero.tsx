@@ -256,7 +256,7 @@ export function getCropEnglishQuery(card: CardData): string {
   return `How to manage and protect ${card.crop} from ${card.topic}?`;
 }
 
-// 34 Validated Agricultural Cards with authentic local crop photography & verified KCC advisories
+// Interactive crop example cards; answers are fetched through the live chat API.
 export const AGRI_CARDS: CardData[] = [
   { 
     id: 0, 

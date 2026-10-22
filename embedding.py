@@ -27,7 +27,7 @@ from sentence_transformers import SentenceTransformer
 
 # ============================== CONFIG ===================================
 
-CORPUS_PATH = "kcc_index_ready.csv"
+CORPUS_PATH = "kcc_index_ready_final.csv"
 SAMPLE_SIZE = 800          # small on purpose — this is a bake-off, not the real index
 TOP_K = (1, 5, 10)
 RANDOM_SEED = 42
@@ -40,6 +40,11 @@ CANDIDATE_MODELS = {
     },
     "paraphrase-multilingual-mpnet": {
         "name": "sentence-transformers/paraphrase-multilingual-mpnet-base-v2",
+        "query_prefix": "",
+        "passage_prefix": "",
+    },
+    "indic-sentence-bert (l3cube)": {
+        "name": "l3cube-pune/indic-sentence-bert-nli",
         "query_prefix": "",
         "passage_prefix": "",
     },
@@ -116,7 +121,7 @@ if __name__ == "__main__":
         summary_df = pd.DataFrame(all_results).set_index("model")
         print(summary_df.round(3).to_string())
         print("\nPick the model with the best recall@5 / recall@10 that still encodes fast "
-              "enough for your corpus size — at ~363K rows, even a 2x speed difference in "
+              "enough for your corpus size — at ~493K rows, even a 2x speed difference in "
               "texts/sec matters a lot once you scale from this 800-row sample to the real index.")
     else:
         print("No models loaded successfully — check error messages above.")

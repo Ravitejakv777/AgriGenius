@@ -6,7 +6,8 @@ import {
   BarChart3, 
   FileText, 
   Users, 
-  ShieldCheck
+  ShieldCheck,
+  Activity
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -31,6 +32,7 @@ export function GlobalBottomNav() {
     { label: 'Home', shortLabel: 'Home', path: '/', icon: Home },
     { label: 'AI Assistant', shortLabel: 'Assistant', path: '/chat', icon: MessageSquare },
     { label: 'Report', shortLabel: 'Report', path: '/report', icon: FileText },
+    { label: 'LLM QA', shortLabel: 'LLM QA', path: '/evaluation', icon: Activity },
     { label: 'Team', shortLabel: 'Team', path: '/team', icon: Users },
   ];
 
