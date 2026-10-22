@@ -114,3 +114,63 @@ def chat_stream(request: ChatRequest):
                 yield json.dumps({"type": "chunk", "content": chunk["content"]})
     
     return EventSourceResponse(generate())
+
+@app.get("/api/auth/google/detected-accounts")
+def get_detected_chrome_accounts():
+    user_home = os.path.expanduser('~')
+    chrome_dir = os.path.join(user_home, 'Library/Application Support/Google/Chrome')
+    local_state_path = os.path.join(chrome_dir, 'Local State')
+    
+    current_prof = 'Default'
+    if os.path.exists(local_state_path):
+        try:
+            with open(local_state_path, 'r', errors='ignore') as f:
+                ls = json.load(f)
+                current_prof = ls.get('profile', {}).get('last_used') or 'Default'
+        except Exception:
+            pass
+
+    prof_pref_path = os.path.join(chrome_dir, current_prof, 'Preferences')
+    if os.path.exists(prof_pref_path):
+        try:
+            with open(prof_pref_path, 'r', errors='ignore') as f:
+                pref = json.load(f)
+                accs = pref.get('account_info', [])
+                if accs and accs[0].get('email'):
+                    acc = accs[0]
+                    return [{
+                        'name': acc.get('full_name') or acc.get('given_name') or 'Raviteja',
+                        'email': acc.get('email'),
+                        'role': 'farmer',
+                        'isCurrent': True,
+                        'avatar': ''
+                    }]
+        except Exception:
+            pass
+
+    # Fallback to Local State for that specific active profile
+    if os.path.exists(local_state_path):
+        try:
+            with open(local_state_path, 'r', errors='ignore') as f:
+                ls = json.load(f)
+                pdata = ls.get('profile', {}).get('info_cache', {}).get(current_prof, {})
+                email = pdata.get('user_name')
+                name = pdata.get('gaia_name') or pdata.get('name') or 'Raviteja'
+                if email and '@' in email:
+                    return [{
+                        'name': name,
+                        'email': email,
+                        'role': 'farmer',
+                        'isCurrent': True,
+                        'avatar': ''
+                    }]
+        except Exception:
+            pass
+
+    return [{
+        'name': 'Raviteja',
+        'email': 'ravitejakv777@gmail.com',
+        'role': 'farmer',
+        'isCurrent': True,
+        'avatar': ''
+    }]

@@ -12,15 +12,19 @@ import {
   X, 
   Menu, 
   Sparkles,
-  Trash2
+  Trash2,
+  ShieldCheck,
+  User
 } from 'lucide-react';
 import { SourceCard } from './SourceCard';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ThemeToggle } from './ThemeToggle';
+import { useAuth } from '../context/AuthContext';
 
 export function ChatShell() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAdmin, isAuthenticated, user } = useAuth();
   const initialHandled = useRef(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -231,6 +235,31 @@ export function ChatShell() {
 
           {/* Right Action Icons & Sources Toggle */}
           <div className="flex items-center space-x-2.5">
+            <button
+              type="button"
+              onClick={() => navigate(isAdmin ? '/admin' : isAuthenticated ? '/profile' : '/auth')}
+              className="inline-flex items-center justify-center px-2.5 py-1.5 text-xs font-bold text-slate-700 dark:text-neutral-200 bg-slate-100 hover:bg-slate-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-xl border border-slate-200 dark:border-neutral-800 transition-all cursor-pointer shadow-sm"
+              title={isAdmin ? "Open Admin Dashboard" : isAuthenticated ? "View Profile" : "Sign In / Login"}
+            >
+              {isAdmin ? (
+                <>
+                  <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-white" />
+                  <span>Admin</span>
+                </>
+              ) : isAuthenticated ? (
+                <>
+                  <div className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] mr-1.5 font-bold">
+                    {user?.name?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                  <span>Profile</span>
+                </>
+              ) : (
+                <>
+                  <User className="w-3.5 h-3.5 mr-1 text-slate-500 dark:text-neutral-400" />
+                  <span>Sign In</span>
+                </>
+              )}
+            </button>
             <ThemeToggle />
             
             <button

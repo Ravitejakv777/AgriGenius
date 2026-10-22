@@ -5,7 +5,10 @@ import { ChatPage } from './pages/ChatPage';
 import { AboutPage } from './pages/AboutPage';
 import { TeamPage } from './pages/TeamPage';
 import { ReportPage } from './pages/ReportPage';
-
+import { AuthPage } from './pages/AuthPage';
+import { AdminDashboard } from './pages/AdminDashboard';
+import { ProfilePage } from './pages/ProfilePage';
+import { AuthProvider } from './context/AuthContext';
 import { GlobalBottomNav } from './components/GlobalBottomNav';
 
 function AnimatedRoutes() {
@@ -20,6 +23,10 @@ function AnimatedRoutes() {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/metrics" element={<AboutPage />} />
         <Route path="/team" element={<TeamPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/login" element={<AuthPage />} />
+        <Route path="/admin" element={<AdminDashboard />} />
       </Routes>
     </AnimatePresence>
   );
@@ -27,12 +34,14 @@ function AnimatedRoutes() {
 
 function App() {
   return (
-    <Router>
-      <div className="relative min-h-screen w-full">
-        <AnimatedRoutes />
-        <GlobalBottomNav />
-      </div>
-    </Router>
+    <AuthProvider>
+      <Router>
+        <div className="relative min-h-screen w-full">
+          <AnimatedRoutes />
+          <GlobalBottomNav />
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 
