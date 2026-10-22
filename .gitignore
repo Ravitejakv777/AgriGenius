@@ -20,6 +20,10 @@ llm_evaluation_results.json
 AgriGenius/
 .vscode/
 
+test_ce.py
+test_ce2.py
+
+
 # Streamlit agent skills (environment-specific symlinks)
 .agents/skills/developing-with-streamlit
 .claude/skills/developing-with-streamlit
