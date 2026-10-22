@@ -1,13 +1,13 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Leaf, MessageSquare, ShieldCheck, User } from 'lucide-react';
+import { Leaf, MessageSquare, User } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { FanWheelHero } from '../components/FanWheelHero';
 import { useAuth } from '../context/AuthContext';
 
 export function LandingPage() {
   const navigate = useNavigate();
-  const { isAdmin, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   return (
     <motion.div 
@@ -43,16 +43,11 @@ export function LandingPage() {
             <div className="flex items-center space-x-2 sm:space-x-3">
               <button
                 type="button"
-                onClick={() => navigate(isAdmin ? '/admin' : isAuthenticated ? '/profile' : '/auth')}
+                onClick={() => navigate(isAuthenticated ? '/profile' : '/auth')}
                 className="inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-bold text-slate-700 dark:text-neutral-200 bg-slate-100 hover:bg-slate-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-xl border border-slate-200 dark:border-neutral-800 transition-all cursor-pointer"
-                title={isAdmin ? "Open Admin Dashboard" : isAuthenticated ? "View Profile" : "Sign In / Login"}
+                title={isAuthenticated ? "View Profile" : "Sign In / Login"}
               >
-                {isAdmin ? (
-                  <>
-                    <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-white" />
-                    <span>Admin</span>
-                  </>
-                ) : isAuthenticated ? (
+                {isAuthenticated ? (
                   <>
                     <User className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-white" />
                     <span>Profile</span>

@@ -6,7 +6,6 @@ import { AboutPage } from './pages/AboutPage';
 import { TeamPage } from './pages/TeamPage';
 import { ReportPage } from './pages/ReportPage';
 import { AuthPage } from './pages/AuthPage';
-import { AdminDashboard } from './pages/AdminDashboard';
 import { ProfilePage } from './pages/ProfilePage';
 import { AuthProvider } from './context/AuthContext';
 import { EvaluationPage } from './pages/EvaluationPage';
@@ -28,7 +27,6 @@ function AnimatedRoutes() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/login" element={<AuthPage />} />
-        <Route path="/admin" element={<AdminDashboard />} />
       </Routes>
     </AnimatePresence>
   );

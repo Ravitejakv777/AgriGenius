@@ -4,6 +4,8 @@ __pycache__/
 
 keys.env
 .env
+*.db
+
 
 
 chroma_kcc_db/
@@ -27,3 +29,11 @@ test_ce2.py
 # Streamlit agent skills (environment-specific symlinks)
 .agents/skills/developing-with-streamlit
 .claude/skills/developing-with-streamlit
+
+# Node / Frontend / Admin dependencies & builds
+node_modules/
+dist/
+dist-ssr/
+*.local
+*.tsbuildinfo
+

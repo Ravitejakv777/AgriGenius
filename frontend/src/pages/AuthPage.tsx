@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   Leaf, 
-  ShieldCheck, 
   Eye, 
   EyeOff, 
   ArrowRight, 
@@ -11,39 +10,52 @@ import {
   Mail, 
   Phone,
   Calendar,
-  MapPin,
   User as UserIcon, 
   CheckCircle2, 
   ArrowLeft,
   KeyRound,
   RotateCcw,
   Sparkles,
-  Check,
-  X
+  Check
 } from 'lucide-react';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { CascadingLocationPicker } from '../components/CascadingLocationPicker';
+import { formatLocationString } from '../lib/locationData';
 
-interface GoogleAccountOption {
-  name: string;
-  email: string;
-  avatar: string;
-  tag?: string;
-  role: UserRole;
-}
-
-const DEFAULT_GOOGLE_ACCOUNTS: GoogleAccountOption[] = [
-  {
-    name: 'Raviteja',
-    email: 'ravitejakv777@gmail.com',
-    avatar: '',
-    role: 'farmer'
+// Global declaration for official Google Identity Services SDK
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential?: string; select_by?: string }) => void;
+            auto_select?: boolean;
+            cancel_on_tap_outside?: boolean;
+          }) => void;
+          renderButton: (parent: HTMLElement, options: Record<string, any>) => void;
+          prompt: (listener?: (notification: any) => void) => void;
+        };
+        oauth2: {
+          initTokenClient: (config: {
+            client_id: string;
+            scope: string;
+            callback: (response: { access_token?: string; error?: string }) => void;
+            error_callback?: (error: any) => void;
+          }) => {
+            requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
+          };
+        };
+      };
+    };
   }
-];
+}
 
 export function AuthPage() {
   const navigate = useNavigate();
-  const { login, signup, quickLogin, loginWithGoogle } = useAuth();
+  const { login, signup, loginWithGoogleToken } = useAuth();
 
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   
@@ -59,53 +71,20 @@ export function AuthPage() {
   const [signupName, setSignupName] = useState('');
   const [signupPhone, setSignupPhone] = useState('');
   const [signupDob, setSignupDob] = useState('');
-  const [signupPlace, setSignupPlace] = useState('');
+  
+  // Cascading Location Hierarchy state
+  const [signupCountry, setSignupCountry] = useState('India');
+  const [signupState, setSignupState] = useState('Andhra Pradesh');
+  const [signupDistrict, setSignupDistrict] = useState('Guntur');
+  const [signupVillage, setSignupVillage] = useState('Amaravati');
+
   const [signupEmail, setSignupEmail] = useState('');
   const [enteredOtp, setEnteredOtp] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(30);
-
-  // Dedicated Google Account Password Setup State
-  interface GoogleSetupState {
-    account: GoogleAccountOption;
-    name: string;
-    email: string;
-    phone: string;
-    dob: string;
-    place: string;
-    hasExistingPwd?: boolean;
-  }
-  const [googleSetupUser, setGoogleSetupUser] = useState<GoogleSetupState | null>(null);
-
-  // Google OAuth Modal state & Dynamic System Chrome Accounts
-  const [detectedGoogleAccounts, setDetectedGoogleAccounts] = useState<GoogleAccountOption[]>(DEFAULT_GOOGLE_ACCOUNTS);
-  const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
-  const [googleSigningInEmail, setGoogleSigningInEmail] = useState<string | null>(null);
-  const [isCustomGoogleAccount, setIsCustomGoogleAccount] = useState(false);
-  const [customGoogleEmailInput, setCustomGoogleEmailInput] = useState('');
-
-  // Dynamically fetch active Google accounts running on Chrome on this machine
-  useEffect(() => {
-    let isMounted = true;
-    fetch('/api/auth/google/detected-accounts')
-      .then(res => {
-        if (!res.ok) throw new Error('Network error');
-        return res.json();
-      })
-      .then((data: GoogleAccountOption[]) => {
-        if (isMounted && Array.isArray(data) && data.length > 0) {
-          setDetectedGoogleAccounts(data);
-        }
-      })
-      .catch(() => {
-        // Fallback already populated with DEFAULT_GOOGLE_ACCOUNTS
-      });
-    return () => { isMounted = false; };
-  }, []);
 
   // Status & loading feedback
   const [isLoading, setIsLoading] = useState(false);
@@ -140,162 +119,164 @@ export function AuthPage() {
     setIsLoading(true);
 
     try {
-      const isTargetAdmin = emailTrim.toLowerCase().includes('admin');
-      const role: UserRole = isTargetAdmin ? 'admin' : 'farmer';
+      const role: UserRole = 'farmer';
       
       // Store password in local storage so it persists
       localStorage.setItem(`agrigenius_pwd_${emailTrim.toLowerCase()}`, signInPassword);
 
-      await login(emailTrim, role);
+      await login(emailTrim, role, signInPassword);
       setStatusMessage({ 
         type: 'success', 
-        text: `Welcome back! Redirecting to ${isTargetAdmin ? 'Admin Dashboard' : 'landing page'}...` 
+        text: 'Welcome back! Redirecting to landing page...' 
       });
 
       setTimeout(() => {
-        if (isTargetAdmin) {
-          navigate('/admin');
-        } else {
-          navigate('/');
-        }
+        navigate('/');
       }, 500);
-    } catch {
-      setStatusMessage({ type: 'error', text: 'Invalid credentials. Please verify your email and password.' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Invalid credentials. Please verify your email and password.';
+      setStatusMessage({ type: 'error', text: msg });
     } finally {
       setIsLoading(false);
     }
   };
 
   // ---------------------------------------------------------------------------
-  // GOOGLE OAUTH SELECTION HANDLER (PROMPTS FOR PASSWORD SETUP)
+  // AUTHENTIC GOOGLE OAUTH 2.0 / IDENTITY SERVICES (GIS) HANDLERS
+  // Matching 5-Step Architecture:
+  // 1. Your website: User clicks Continue with Google
+  // 2. Google sign-in: User selects an account and grants permission
+  // 3. Your backend verifies the login: Receives and validates Google's identity
+  // 4. Neon PostgreSQL: Stores the user's account details, if new (or fetches)
+  // 5. User is logged in: Website opens user's account or dashboard
   // ---------------------------------------------------------------------------
-  const handleSelectGoogleAccount = (account: GoogleAccountOption) => {
-    setGoogleSigningInEmail(account.email);
 
-    setTimeout(() => {
-      setIsGoogleModalOpen(false);
-      setGoogleSigningInEmail(null);
-
-      const existingPwd = localStorage.getItem(`agrigenius_pwd_${account.email.toLowerCase().trim()}`);
-
-      setGoogleSetupUser({
-        account,
-        name: account.name || 'Raviteja',
-        email: account.email,
-        phone: '+91 98765 43210',
-        dob: '1995-08-15',
-        place: 'Andhra Pradesh, India',
-        hasExistingPwd: !!existingPwd,
-      });
-
-      setNewPassword('');
-      setConfirmPassword('');
-      setShowNewPassword(false);
-      setShowConfirmPassword(false);
-      setStatusMessage({
-        type: 'info',
-        text: existingPwd 
-          ? `Google account verified: ${account.email}. Enter your password or set a new one.` 
-          : `Google account verified: ${account.email}. Please set your password to continue.`
-      });
-    }, 450);
+  const getEffectiveClientId = () => {
+    const saved = localStorage.getItem('agrigenius_google_client_id');
+    if (saved && saved.startsWith('174733774878')) {
+      localStorage.removeItem('agrigenius_google_client_id');
+    }
+    return (
+      (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) ||
+      localStorage.getItem('agrigenius_google_client_id') ||
+      '773273062102-88fug0or77nb9p9tb3kk7qjo5eq72kvu.apps.googleusercontent.com'
+    );
   };
 
-  const handleCompleteGooglePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!googleSetupUser) return;
-    setStatusMessage(null);
-
-    const nameTrim = googleSetupUser.name.trim();
-    const phoneTrim = googleSetupUser.phone.trim();
-    const dobTrim = googleSetupUser.dob.trim();
-    const placeTrim = googleSetupUser.place.trim();
-
-    if (!nameTrim) {
-      setStatusMessage({ type: 'error', text: 'Please enter your full name.' });
-      return;
-    }
-    if (!phoneTrim) {
-      setStatusMessage({ type: 'error', text: 'Please enter your phone number.' });
-      return;
-    }
-    if (!dobTrim) {
-      setStatusMessage({ type: 'error', text: 'Please enter your date of birth.' });
-      return;
-    }
-    if (!placeTrim) {
-      setStatusMessage({ type: 'error', text: 'Please enter your place / location.' });
-      return;
-    }
-    if (!newPassword || newPassword.length < 4) {
-      setStatusMessage({ type: 'error', text: 'Password must be at least 4 characters.' });
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setStatusMessage({ type: 'error', text: 'Passwords do not match. Please re-enter carefully.' });
-      return;
-    }
-
-    setIsLoading(true);
-
+  // Authentic Google OAuth sign-in / verification
+  const executeBackendVerificationAndLogin = async (payload: {
+    credential?: string;
+    access_token?: string;
+    email?: string;
+    name?: string;
+  }) => {
     try {
-      localStorage.setItem(`agrigenius_pwd_${googleSetupUser.email.toLowerCase().trim()}`, newPassword);
+      setIsLoading(true);
 
-      await loginWithGoogle({
-        name: nameTrim,
-        email: googleSetupUser.email.trim(),
-        phone: phoneTrim,
-        dob: dobTrim,
-        place: placeTrim,
-        role: googleSetupUser.account.role,
-        avatar: '',
+      const res = await loginWithGoogleToken({
+        ...payload,
+        country: signupCountry,
+        state: signupState,
+        district: signupDistrict,
+        village: signupVillage,
+        role: 'farmer'
       });
 
       setStatusMessage({
         type: 'success',
-        text: `Password configured successfully! Welcome, ${nameTrim}. Redirecting to landing page...`
+        text: res.isNewUser
+          ? `Welcome to AgriGenius, ${res.user.name}! Account registered successfully.`
+          : `Welcome back, ${res.user.name}!`
       });
 
       setTimeout(() => {
-        if (googleSetupUser.account.role === 'admin') {
-          navigate('/admin');
-        } else {
-          navigate('/');
-        }
+        navigate('/');
       }, 500);
-    } catch {
-      setStatusMessage({ type: 'error', text: 'Sign-in failed. Please try again.' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Google authentication verification failed.';
+      setStatusMessage({ type: 'error', text: msg });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleCustomGoogleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const email = customGoogleEmailInput.trim();
-    if (!email || !email.includes('@')) return;
+  // Google OAuth sign-in trigger
+  const handleContinueWithGoogle = () => {
+    setStatusMessage(null);
+    setIsLoading(true);
 
-    const account: GoogleAccountOption = {
-      name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      email,
-      avatar: '',
-      role: email.toLowerCase().includes('admin') ? 'admin' : 'farmer'
+    if (window.google?.accounts?.oauth2) {
+      try {
+        const clientId = getEffectiveClientId();
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'email profile openid',
+          callback: async (tokenResponse) => {
+            if (tokenResponse?.access_token) {
+              await executeBackendVerificationAndLogin({ access_token: tokenResponse.access_token });
+            } else {
+              setIsLoading(false);
+              if (tokenResponse?.error && tokenResponse.error !== 'popup_closed_by_user') {
+                setStatusMessage({ type: 'error', text: 'Google sign-in was not completed. Please try again.' });
+              }
+            }
+          },
+          error_callback: (err: any) => {
+            console.warn('[Google OAuth] Popup/Origin note:', err);
+            setIsLoading(false);
+            setStatusMessage({ type: 'error', text: 'Google sign-in popup could not be completed. Please try again or check browser popup permissions.' });
+          }
+        });
+        tokenClient.requestAccessToken({ prompt: 'select_account' });
+        return;
+      } catch (err) {
+        console.warn('initTokenClient notice:', err);
+        setIsLoading(false);
+      }
+    }
+
+    // Fallback if Google GIS script was not available yet
+    setIsLoading(false);
+    setStatusMessage({ type: 'error', text: 'Google Identity Services is initializing. Please try again in a moment.' });
+  };
+
+  // Official Google One Tap / GIS Button Initialization
+  useEffect(() => {
+    const initGis = () => {
+      const clientId = getEffectiveClientId();
+      if (window.google?.accounts?.id && clientId) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: clientId,
+            callback: async (resp: any) => {
+              if (resp?.credential) {
+                await executeBackendVerificationAndLogin({ credential: resp.credential });
+              }
+            },
+            auto_select: false,
+            cancel_on_tap_outside: true,
+          });
+        } catch (e) {
+          console.warn('GIS One Tap init note:', e);
+        }
+      }
     };
 
-    handleSelectGoogleAccount(account);
-  };
+    initGis();
+    const timer = setTimeout(initGis, 800);
+    return () => clearTimeout(timer);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // SIGN UP: STEP 1 - SEND OTP TO EMAIL (WITH USER DETAILS)
   // ---------------------------------------------------------------------------
-  const handleSendOtp = (e?: React.FormEvent) => {
+  const handleSendOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setStatusMessage(null);
 
     const nameTrim = signupName.trim();
     const phoneTrim = signupPhone.trim();
     const dobTrim = signupDob.trim();
-    const placeTrim = signupPlace.trim();
     const emailTrim = signupEmail.trim();
 
     if (!nameTrim) {
@@ -310,8 +291,8 @@ export function AuthPage() {
       setStatusMessage({ type: 'error', text: 'Please enter your date of birth.' });
       return;
     }
-    if (!placeTrim) {
-      setStatusMessage({ type: 'error', text: 'Please enter your place / location.' });
+    if (!signupCountry || !signupState || !signupDistrict || !signupVillage) {
+      setStatusMessage({ type: 'error', text: 'Please select your complete location (Country, State, District, Village).' });
       return;
     }
     if (!emailTrim || !emailTrim.includes('@') || !emailTrim.includes('.')) {
@@ -321,33 +302,73 @@ export function AuthPage() {
 
     setIsLoading(true);
 
-    setTimeout(() => {
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
-      setGeneratedOtp(code);
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailTrim, purpose: 'registration' })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const errorMsg = data.detail || data.message || 'Failed to send verification code.';
+        setStatusMessage({ type: 'error', text: errorMsg });
+        if (errorMsg.includes('already exists') || errorMsg.includes('Try login')) {
+          setMode('signin');
+          setSignInEmail(emailTrim);
+        }
+        return;
+      }
+
       setSignupStep('otp');
       setResendCountdown(30);
-      setIsLoading(false);
       setStatusMessage({
         type: 'info',
-        text: `Verification code sent to ${emailTrim}: ${code}`
+        text: `Verification code sent to ${emailTrim}. Please check your email inbox (and spam folder).`
       });
-    }, 600);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error sending verification code.';
+      setStatusMessage({ type: 'error', text: msg });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ---------------------------------------------------------------------------
   // SIGN UP: STEP 2 - VERIFY OTP
   // ---------------------------------------------------------------------------
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMessage(null);
 
-    if (enteredOtp.trim() !== generatedOtp.trim()) {
-      setStatusMessage({ type: 'error', text: 'Incorrect 6-digit verification code. Please check and try again.' });
+    const otpTrim = enteredOtp.trim();
+    if (!otpTrim || otpTrim.length < 4) {
+      setStatusMessage({ type: 'error', text: 'Please enter the 6-digit verification code.' });
       return;
     }
 
-    setStatusMessage({ type: 'success', text: 'Email verified successfully! Now create your secure password.' });
-    setSignupStep('password');
+    setIsLoading(true);
+
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: signupEmail.trim(), otp: otpTrim })
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.detail || 'Incorrect or expired verification code. Please request a new code.');
+      }
+
+      setStatusMessage({ type: 'success', text: 'Email verified successfully! Now create your secure password.' });
+      setSignupStep('password');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Verification failed. Please check the code.';
+      setStatusMessage({ type: 'error', text: msg });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ---------------------------------------------------------------------------
@@ -370,50 +391,40 @@ export function AuthPage() {
     setIsLoading(true);
 
     try {
-      const isTargetAdmin = signupEmail.toLowerCase().includes('admin');
-      const role: UserRole = isTargetAdmin ? 'admin' : 'farmer';
+      const role: UserRole = 'farmer';
+      const finalPlace = formatLocationString(signupCountry, signupState, signupDistrict, signupVillage);
 
       await signup({
         name: signupName.trim(),
         email: signupEmail.trim(),
+        password: newPassword.trim(),
         phone: signupPhone.trim(),
         dob: signupDob.trim(),
-        place: signupPlace.trim(),
+        country: signupCountry,
+        state: signupState,
+        district: signupDistrict,
+        village: signupVillage,
+        place: finalPlace,
         role,
-        state: signupPlace.trim(),
         avatar: '',
-        organization: isTargetAdmin ? 'Central Operations' : 'Agricultural Cooperative'
+        organization: 'Agricultural Cooperative'
       });
 
       setStatusMessage({ type: 'success', text: 'Account created successfully! Redirecting to landing page...' });
 
       setTimeout(() => {
-        if (isTargetAdmin) {
-          navigate('/admin');
-        } else {
-          navigate('/');
-        }
+        navigate('/');
       }, 600);
-    } catch {
-      setStatusMessage({ type: 'error', text: 'Registration failed. Please try again.' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Registration failed. Please try again.';
+      setStatusMessage({ type: 'error', text: msg });
+      if (msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('try login')) {
+        setMode('signin');
+        setSignInEmail(signupEmail.trim());
+      }
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // ---------------------------------------------------------------------------
-  // INSTANT DEMO EVALUATION
-  // ---------------------------------------------------------------------------
-  const handleQuickDemo = (role: UserRole) => {
-    quickLogin(role);
-    setStatusMessage({ type: 'success', text: `Signed in as Demo ${role.toUpperCase()}. Redirecting to landing page...` });
-    setTimeout(() => {
-      if (role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/');
-      }
-    }, 400);
   };
 
   return (
@@ -463,250 +474,9 @@ export function AuthPage() {
           
           {/* Card Wrapper */}
           <div className="bg-white dark:bg-neutral-950 border border-slate-200 dark:border-neutral-800/90 rounded-3xl p-5 sm:p-7 shadow-xl dark:shadow-[0_20px_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
-            
-            {googleSetupUser ? (
-              /* ============================================================= */
-              /* GOOGLE ACCOUNT PASSWORD & PROFILE SETUP STEP                 */
-              /* ============================================================= */
-              <form onSubmit={handleCompleteGooglePassword} className="space-y-3">
-                {/* Top Cancel / Back to accounts bar */}
-                <div className="flex items-center justify-between pb-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGoogleSetupUser(null);
-                      setStatusMessage(null);
-                    }}
-                    className="inline-flex items-center space-x-1 text-xs font-semibold text-slate-500 dark:text-neutral-400 hover:text-slate-800 dark:hover:text-white cursor-pointer transition-colors"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Back to sign in</span>
-                  </button>
-
-                  <span className="text-[10.5px] font-mono font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-0.5 rounded-full flex items-center space-x-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                    <span>Google Verified</span>
-                  </span>
-                </div>
-
-                {/* Header copy */}
-                <div className="text-center pb-1">
-                  <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                    Set Account Password
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-neutral-400 mt-1">
-                    Create a password for <span className="font-semibold text-slate-800 dark:text-white">{googleSetupUser.email}</span> to secure your AgriGenius login.
-                  </p>
-                </div>
-
-                {/* Verified Google Account Pill */}
-                <div className="flex items-center space-x-3 p-2.5 bg-slate-50 dark:bg-neutral-900 rounded-xl border border-slate-200 dark:border-neutral-800">
-                  <div className="w-8 h-8 rounded-full bg-[#6200ee] text-white flex items-center justify-center font-bold text-xs shrink-0">
-                    {googleSetupUser.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="truncate flex-1">
-                    <div className="text-xs font-bold text-slate-900 dark:text-white truncate">{googleSetupUser.name}</div>
-                    <div className="text-[11px] text-slate-500 dark:text-neutral-400 font-mono truncate">{googleSetupUser.email}</div>
-                  </div>
-                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                  </svg>
-                </div>
-
-                {/* Status Feedback */}
-                {statusMessage && (
-                  <div 
-                    className={`p-2.5 rounded-xl text-xs font-medium border flex items-center space-x-2 ${
-                      statusMessage.type === 'error'
-                        ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/60'
-                        : statusMessage.type === 'success'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-neutral-900 dark:text-white dark:border-neutral-700'
-                        : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-neutral-900 dark:text-neutral-300 dark:border-neutral-800'
-                    }`}
-                  >
-                    <div className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
-                    <span>{statusMessage.text}</span>
-                  </div>
-                )}
-
-                {/* Full Name */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300 mb-1">
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <UserIcon className="w-4 h-4 text-slate-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      required
-                      value={googleSetupUser.name}
-                      onChange={(e) => setGoogleSetupUser({ ...googleSetupUser, name: e.target.value })}
-                      placeholder="e.g. Raviteja"
-                      className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Phone Number & DOB */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300 mb-1">
-                      Phone Number
-                    </label>
-                    <div className="relative">
-                      <Phone className="w-4 h-4 text-slate-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="tel"
-                        required
-                        value={googleSetupUser.phone}
-                        onChange={(e) => setGoogleSetupUser({ ...googleSetupUser, phone: e.target.value })}
-                        placeholder="+91 98765 43210"
-                        className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300 mb-1">
-                      Date of Birth
-                    </label>
-                    <div className="relative">
-                      <Calendar className="w-4 h-4 text-slate-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="date"
-                        required
-                        value={googleSetupUser.dob}
-                        onChange={(e) => setGoogleSetupUser({ ...googleSetupUser, dob: e.target.value })}
-                        className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Place / Location */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300 mb-1">
-                    Place / Location
-                  </label>
-                  <div className="relative">
-                    <MapPin className="w-4 h-4 text-slate-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      required
-                      value={googleSetupUser.place}
-                      onChange={(e) => setGoogleSetupUser({ ...googleSetupUser, place: e.target.value })}
-                      placeholder="e.g. Andhra Pradesh, India"
-                      className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Create Password */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300 mb-1">
-                    Create Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-slate-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type={showNewPassword ? 'text' : 'password'}
-                      required
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="At least 4 characters"
-                      className="w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-neutral-500 hover:text-slate-600 dark:hover:text-neutral-300 p-0.5 cursor-pointer"
-                    >
-                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {newPassword.length > 0 && newPassword.length < 4 && (
-                    <p className="mt-1 text-[11px] font-medium text-amber-600 dark:text-amber-400">
-                      Password must be at least 4 characters ({newPassword.length}/4)
-                    </p>
-                  )}
-                </div>
-
-                {/* Re-enter Password */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300 mb-1">
-                    Re-enter Password
-                  </label>
-                  <div className="relative">
-                    <Lock className="w-4 h-4 text-slate-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Re-enter to confirm"
-                      className={`w-full pl-10 pr-10 py-2 bg-slate-50 dark:bg-neutral-900 border rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 transition-all ${
-                        confirmPassword.length > 0 && confirmPassword !== newPassword
-                          ? 'border-rose-400 dark:border-rose-800 focus:ring-rose-500'
-                          : confirmPassword.length > 0 && confirmPassword === newPassword
-                          ? 'border-emerald-500 dark:border-white focus:ring-emerald-500 dark:focus:ring-white'
-                          : 'border-slate-200 dark:border-neutral-800 focus:ring-emerald-500 dark:focus:ring-white'
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-neutral-500 hover:text-slate-600 dark:hover:text-neutral-300 p-0.5 cursor-pointer"
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-
-                  {confirmPassword.length > 0 && (
-                    <div className="mt-1 text-[11px] font-semibold flex items-center space-x-1">
-                      {confirmPassword === newPassword ? (
-                        newPassword.length >= 4 ? (
-                          <span className="text-emerald-600 dark:text-white flex items-center space-x-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                            <span>Passwords match (Ready to sign in)</span>
-                          </span>
-                        ) : (
-                          <span className="text-amber-600 dark:text-amber-400">
-                            Passwords match, but must be at least 4 characters
-                          </span>
-                        )
-                      ) : (
-                        <span className="text-rose-600 dark:text-rose-400">
-                          Passwords do not match
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  disabled={isLoading || !newPassword || newPassword.length < 4 || newPassword !== confirmPassword}
-                  className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/20 dark:shadow-none transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 mt-3"
-                >
-                  {isLoading ? (
-                    <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Save Password & Sign In</span>
-                    </>
-                  )}
-                </button>
-              </form>
-            ) : (
-              <>
-                {/* Header copy */}
-                <div className="text-center mb-6">
-                  <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            {/* Header copy */}
+            <div className="text-center mb-6">
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                 {mode === 'signin' ? 'Sign in to AgriGenius' : 'Create your account'}
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-neutral-400 mt-1.5">
@@ -753,33 +523,39 @@ export function AuthPage() {
             <div className="mb-4">
               <button
                 type="button"
-                onClick={() => {
-                  setIsCustomGoogleAccount(false);
-                  setIsGoogleModalOpen(true);
-                }}
+                onClick={handleContinueWithGoogle}
                 disabled={isLoading}
-                className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 dark:bg-neutral-900 dark:hover:bg-neutral-800/90 border border-slate-300 dark:border-neutral-800 rounded-xl text-xs sm:text-sm font-bold text-slate-800 dark:text-white transition-all flex items-center justify-center space-x-3 shadow-sm cursor-pointer hover:border-slate-400 dark:hover:border-neutral-700"
+                className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 dark:bg-neutral-900 dark:hover:bg-neutral-800/90 border border-slate-300 dark:border-neutral-800 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 dark:text-white transition-all flex items-center justify-center space-x-3 shadow-sm cursor-pointer hover:border-slate-400 dark:hover:border-neutral-700 active:scale-[0.99] disabled:opacity-60"
               >
-                {/* SVG Google G Logo */}
-                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>Continue with Google</span>
+                {isLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-slate-400 border-t-emerald-500 rounded-full animate-spin shrink-0" />
+                    <span>Connecting to Google...</span>
+                  </>
+                ) : (
+                  <>
+                    {/* SVG Google G Logo */}
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                      <path
+                        fill="#4285F4"
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                      />
+                      <path
+                        fill="#EA4335"
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                      />
+                    </svg>
+                    <span>Continue with Google</span>
+                  </>
+                )}
               </button>
 
               <div className="relative flex items-center justify-center my-4">
@@ -822,7 +598,7 @@ export function AuthPage() {
                     </label>
                     <button
                       type="button"
-                      onClick={() => setStatusMessage({ type: 'info', text: 'For demo accounts, use any password >= 4 chars, or click Demo buttons below.' })}
+                      onClick={() => setStatusMessage({ type: 'info', text: 'Please sign in with Google or verify with your mobile OTP on sign-up.' })}
                       className="text-[11px] text-emerald-600 dark:text-neutral-400 hover:underline cursor-pointer"
                     >
                       Forgot password?
@@ -917,15 +693,6 @@ export function AuthPage() {
                     <div className="w-1.5 h-1.5 rounded-full bg-current shrink-0 mt-1" />
                     <div className="flex-1">
                       <span>{statusMessage.text}</span>
-                      {signupStep === 'otp' && generatedOtp && (
-                        <button
-                          type="button"
-                          onClick={() => setEnteredOtp(generatedOtp)}
-                          className="block text-[11px] underline font-bold mt-1 text-emerald-700 dark:text-white cursor-pointer"
-                        >
-                          Auto-fill verification code ({generatedOtp})
-                        </button>
-                      )}
                     </div>
                   </div>
                 )}
@@ -989,22 +756,26 @@ export function AuthPage() {
                       </div>
                     </div>
 
-                    {/* Place / Location */}
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">
-                        Place / Location
-                      </label>
-                      <div className="relative">
-                        <MapPin className="w-4 h-4 text-slate-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          required
-                          value={signupPlace}
-                          onChange={(e) => setSignupPlace(e.target.value)}
-                          placeholder="e.g. Guntur, Andhra Pradesh"
-                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
-                        />
+                    {/* Cascading Location Hierarchy (Country -> State -> District -> Village) */}
+                    <div className="pt-2 border-t border-slate-100 dark:border-neutral-800">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300">
+                          Farm Location (Country &rarr; State &rarr; District &rarr; Village)
+                        </label>
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Cascading Dropdowns</span>
                       </div>
+                      <CascadingLocationPicker
+                        country={signupCountry}
+                        state={signupState}
+                        district={signupDistrict}
+                        village={signupVillage}
+                        onChange={(loc) => {
+                          setSignupCountry(loc.country);
+                          setSignupState(loc.state);
+                          setSignupDistrict(loc.district);
+                          setSignupVillage(loc.village);
+                        }}
+                      />
                     </div>
 
                     {/* Email Address */}
@@ -1230,49 +1001,6 @@ export function AuthPage() {
               </div>
             )}
 
-            {/* Quick Demo One-Click Access Bar */}
-            <div className="mt-6 pt-5 border-t border-slate-200 dark:border-neutral-900">
-              <div className="flex items-center justify-between mb-2.5">
-                <span className="text-[10.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
-                  Instant Demo Evaluation
-                </span>
-                <span className="text-[10px] text-emerald-600 dark:text-white font-mono bg-emerald-50 dark:bg-neutral-900 px-2 py-0.5 rounded border border-emerald-200 dark:border-neutral-800">
-                  No Password Needed
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo('admin')}
-                  className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-neutral-900 dark:hover:bg-neutral-800/90 border border-slate-200/80 dark:border-neutral-800 text-slate-800 dark:text-white text-[11px] font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer group"
-                >
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-white group-hover:scale-110 transition-transform" />
-                  <span>Demo Admin</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo('farmer')}
-                  className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-neutral-900 dark:hover:bg-neutral-800/90 border border-slate-200/80 dark:border-neutral-800 text-slate-800 dark:text-white text-[11px] font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer group"
-                >
-                  <Leaf className="w-4 h-4 text-emerald-600 dark:text-white group-hover:scale-110 transition-transform" />
-                  <span>Demo Farmer</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo('agronomist')}
-                  className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-neutral-900 dark:hover:bg-neutral-800/90 border border-slate-200/80 dark:border-neutral-800 text-slate-800 dark:text-white text-[11px] font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer group"
-                >
-                  <KeyRound className="w-4 h-4 text-emerald-600 dark:text-white group-hover:scale-110 transition-transform" />
-                  <span>Demo Scientist</span>
-                </button>
-              </div>
-            </div>
-            </>
-            )}
-
           </div>
 
           {/* Security footnote */}
@@ -1285,221 +1013,9 @@ export function AuthPage() {
         </div>
       </main>
 
-      {/* ========================================================================= */}
-      {/* AUTHENTIC GOOGLE OAUTH POPUP / SCREEN (MATCHES ACCOUNTS.GOOGLE.COM)        */}
-      {/* ========================================================================= */}
-      <AnimatePresence>
-        {isGoogleModalOpen && (
-          <div className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-[#131314] text-[#e8eaed] overflow-y-auto">
-            
-            {/* Top Browser Window Header Matching User's Chrome Browser Screenshot */}
-            <div className="w-full bg-[#1e1f20] border-b border-[#3c4043]/80 px-4 py-2 flex items-center justify-between text-xs text-[#9aa0a6] select-none shrink-0">
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsGoogleModalOpen(false);
-                    setGoogleSigningInEmail(null);
-                  }}
-                  title="Close popup"
-                  className="w-3 h-3 rounded-full bg-[#ff5f56] hover:opacity-80 transition-opacity cursor-pointer"
-                />
-                <div className="w-3 h-3 rounded-full bg-[#ffbd2e]" />
-                <div className="w-3 h-3 rounded-full bg-[#27c93f]" />
-              </div>
 
-              {/* Simulated Authentic Google Accounts URL Bar */}
-              <div className="flex-1 max-w-2xl mx-4 bg-[#131314] px-3.5 py-1.5 rounded-full text-[11px] text-[#9aa0a6] font-mono flex items-center space-x-2 truncate border border-[#3c4043]/60 shadow-inner">
-                <Lock className="w-3 h-3 text-[#34a853] shrink-0" />
-                <span className="text-[#e8eaed] font-medium shrink-0">accounts.google.com</span>
-                <span className="truncate text-[#9aa0a6]">
-                  /v3/signin/accountchooser?client_id=174733774878-0pfvmjagkfoeuqk20nqfs4r5mv3fabvv.apps.googleusercontent.com&continue=https%3A%2F%2Fagrigenius.app
-                </span>
-              </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setIsGoogleModalOpen(false);
-                  setGoogleSigningInEmail(null);
-                }}
-                title="Close"
-                className="p-1 rounded-md text-[#9aa0a6] hover:text-[#e8eaed] hover:bg-[#282a2d] transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            {/* Center Area: Centered Google Card */}
-            <div className="flex-1 w-full flex items-center justify-center p-4 sm:p-8">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.98, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.98, y: 10 }}
-                transition={{ duration: 0.18 }}
-                className="max-w-4xl w-full bg-[#1e1f20] border border-[#3c4043]/60 rounded-[28px] p-6 sm:p-10 md:p-12 shadow-2xl relative overflow-hidden"
-              >
-                {/* Google Animated Progress Bar on Account Click */}
-                {googleSigningInEmail && (
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-transparent overflow-hidden">
-                    <div className="h-full bg-[#8ab4f8] animate-pulse w-full" />
-                  </div>
-                )}
-
-                {/* Top Google Header inside Card */}
-                <div className="flex items-center space-x-2.5 pb-6">
-                  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                    <path
-                      fill="#4285F4"
-                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                    />
-                    <path
-                      fill="#34A853"
-                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                    />
-                    <path
-                      fill="#FBBC05"
-                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                    />
-                    <path
-                      fill="#EA4335"
-                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                    />
-                  </svg>
-                  <span className="text-sm font-medium text-[#e8eaed] font-sans">Sign in with Google</span>
-                </div>
-
-                {/* 2-Column Layout Matching User Screenshot */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-14">
-                  
-                  {/* Left Column: App Icon & Choose an account */}
-                  <div className="flex flex-col justify-start">
-                    {/* App Icon: Green Rounded Square */}
-                    <div className="w-14 h-14 rounded-2xl bg-[#00c853] flex items-center justify-center mb-6 shadow-md shadow-emerald-500/20">
-                      <Leaf className="w-7 h-7 text-black fill-black" />
-                    </div>
-
-                    <h1 className="text-3xl sm:text-4xl font-normal text-white tracking-tight mb-2.5 font-sans">
-                      Choose an account
-                    </h1>
-                    <p className="text-sm text-[#e8eaed]">
-                      to continue to <span className="text-[#a8c7fa] font-medium hover:underline cursor-pointer">AgriGenius</span>
-                    </p>
-                  </div>
-
-                  {/* Right Column: Account list & Disclaimers */}
-                  <div className="flex flex-col justify-between">
-                    {!isCustomGoogleAccount ? (
-                      <div>
-                        {/* Dynamic Account Options: Automatically Detected from Active Chrome Profiles */}
-                        {detectedGoogleAccounts.map((account) => (
-                          <button
-                            key={account.email}
-                            type="button"
-                            disabled={!!googleSigningInEmail}
-                            onClick={() => handleSelectGoogleAccount(account)}
-                            className="w-full flex items-center justify-between py-3.5 px-3 rounded-lg hover:bg-[#282a2d] transition-colors border-b border-[#3c4043] text-left cursor-pointer group"
-                          >
-                            <div className="flex items-center space-x-3.5 min-w-0">
-                              <div className="w-9 h-9 rounded-full bg-[#6200ee] text-white flex items-center justify-center font-medium text-sm shrink-0">
-                                {account.name.charAt(0).toUpperCase()}
-                              </div>
-                              <div className="truncate">
-                                <div className="text-sm font-medium text-white truncate">{account.name}</div>
-                                <div className="text-xs text-[#9aa0a6] truncate font-sans">{account.email}</div>
-                              </div>
-                            </div>
-                            {googleSigningInEmail === account.email && (
-                              <div className="w-4 h-4 border-2 border-[#8ab4f8] border-t-transparent rounded-full animate-spin shrink-0" />
-                            )}
-                          </button>
-                        ))}
-
-                        {/* Use another account Option */}
-                        <button
-                          type="button"
-                          disabled={!!googleSigningInEmail}
-                          onClick={() => setIsCustomGoogleAccount(true)}
-                          className="w-full flex items-center py-3.5 px-3 rounded-lg hover:bg-[#282a2d] transition-colors border-b border-[#3c4043] text-left cursor-pointer group space-x-3.5"
-                        >
-                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-[#e8eaed] shrink-0 border border-[#5f6368]">
-                            <UserIcon className="w-5 h-5 text-[#e8eaed]" />
-                          </div>
-                          <div className="text-sm font-medium text-white">
-                            Use another account
-                          </div>
-                        </button>
-
-                        {/* Bottom Google Disclosure */}
-                        <p className="text-xs text-[#9aa0a6] leading-relaxed pt-7">
-                          Before using this app, you can review AgriGenius's{' '}
-                          <span className="text-[#a8c7fa] hover:underline cursor-pointer">Privacy Policy</span>{' '}
-                          and{' '}
-                          <span className="text-[#a8c7fa] hover:underline cursor-pointer">Terms of Service</span>.
-                        </p>
-                      </div>
-                    ) : (
-                      /* Google "Use another account" Input Screen */
-                      <form onSubmit={handleCustomGoogleSubmit} className="space-y-4 pt-1">
-                        <div>
-                          <h3 className="text-lg text-white font-medium mb-1">Sign in</h3>
-                          <p className="text-xs text-[#9aa0a6]">to continue to AgriGenius</p>
-                        </div>
-
-                        <div className="pt-2">
-                          <input
-                            type="email"
-                            required
-                            autoFocus
-                            value={customGoogleEmailInput}
-                            onChange={(e) => setCustomGoogleEmailInput(e.target.value)}
-                            placeholder="Email or phone"
-                            className="w-full px-4 py-3 bg-transparent border border-[#5f6368] focus:border-[#8ab4f8] rounded-md text-sm text-white placeholder-[#9aa0a6] focus:outline-none focus:ring-1 focus:ring-[#8ab4f8]"
-                          />
-                        </div>
-
-                        <div className="text-xs">
-                          <span className="text-[#a8c7fa] hover:underline cursor-pointer font-medium">Forgot email?</span>
-                        </div>
-
-                        <div className="flex justify-between items-center pt-6">
-                          <button
-                            type="button"
-                            onClick={() => setIsCustomGoogleAccount(false)}
-                            className="text-xs text-[#8ab4f8] hover:underline cursor-pointer font-medium"
-                          >
-                            Back to accounts
-                          </button>
-                          <button
-                            type="submit"
-                            className="px-6 py-2 bg-[#8ab4f8] hover:bg-[#a8c7fa] text-[#001d35] font-semibold text-xs rounded-full cursor-pointer transition-colors"
-                          >
-                            Next
-                          </button>
-                        </div>
-                      </form>
-                    )}
-                  </div>
-
-                </div>
-              </motion.div>
-            </div>
-
-            {/* Bottom Screen Footer Matching Google OAuth Page */}
-            <div className="max-w-4xl w-full flex flex-col sm:flex-row justify-between items-center text-xs text-[#9aa0a6] px-6 py-4 space-y-2 sm:space-y-0 shrink-0">
-              <span className="cursor-pointer hover:text-white transition-colors">
-                English (United States) ▾
-              </span>
-              <div className="flex space-x-6">
-                <span className="cursor-pointer hover:text-white transition-colors">Help</span>
-                <span className="cursor-pointer hover:text-white transition-colors">Privacy</span>
-                <span className="cursor-pointer hover:text-white transition-colors">Terms</span>
-              </div>
-            </div>
-
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Footer */}
       <footer className="w-full py-3.5 text-center border-t border-slate-200/60 dark:border-neutral-900 text-slate-500 dark:text-neutral-500 text-xs">

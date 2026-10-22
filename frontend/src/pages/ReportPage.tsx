@@ -25,8 +25,7 @@ import {
   Eye,
   X,
   FileText,
-  Loader2,
-  ShieldCheck
+  Loader2
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
@@ -821,7 +820,7 @@ function downloadCleanPdfReport(report: GeneratedReport) {
 
 export function ReportPage() {
   const navigate = useNavigate();
-  const { isAdmin, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [form, setForm] = useState<CropReportState>(DEFAULT_STATE);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -1047,16 +1046,11 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
             <button
               type="button"
               data-skip-enter="true"
-              onClick={() => navigate(isAdmin ? '/admin' : isAuthenticated ? '/profile' : '/auth')}
+              onClick={() => navigate(isAuthenticated ? '/profile' : '/auth')}
               className="inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-bold text-slate-700 dark:text-neutral-200 bg-slate-100 hover:bg-slate-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-xl border border-slate-200 dark:border-neutral-800 transition-all cursor-pointer shadow-sm"
-              title={isAdmin ? "Open Admin Dashboard" : isAuthenticated ? "View Profile" : "Sign In / Login"}
+              title={isAuthenticated ? "View Profile" : "Sign In / Login"}
             >
-              {isAdmin ? (
-                <>
-                  <ShieldCheck className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-white" />
-                  <span>Admin</span>
-                </>
-              ) : isAuthenticated ? (
+              {isAuthenticated ? (
                 <>
                   <User className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-white" />
                   <span>Profile</span>

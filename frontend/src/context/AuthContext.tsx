@@ -10,19 +10,37 @@ export interface User {
   phone?: string;
   dob?: string;
   place?: string;
+  country?: string;
+  district?: string;
+  village?: string;
   avatar?: string;
   organization?: string;
   state?: string;
+  password?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  login: (email: string, role?: UserRole) => Promise<boolean>;
-  signup: (userData: Omit<User, 'id'>) => Promise<boolean>;
+  login: (email: string, role?: UserRole, password?: string) => Promise<boolean>;
+  signup: (userData: Omit<User, 'id'> & { password?: string }) => Promise<boolean>;
   logout: () => void;
   quickLogin: (role: UserRole) => void;
+  loginWithGoogleToken: (payload: {
+    credential?: string;
+    access_token?: string;
+    email?: string;
+    name?: string;
+    role?: UserRole;
+    phone?: string;
+    dob?: string;
+    place?: string;
+    country?: string;
+    state?: string;
+    district?: string;
+    village?: string;
+  }) => Promise<{ success: boolean; isNewUser: boolean; user: User }>;
   loginWithGoogle: (customAccount?: { 
     name: string; 
     email: string; 
@@ -31,7 +49,14 @@ interface AuthContextType {
     phone?: string;
     dob?: string;
     place?: string;
+    country?: string;
+    state?: string;
+    district?: string;
+    village?: string;
+    password?: string;
   }) => Promise<boolean>;
+  deleteAccount: (reason: string, feedback?: string) => Promise<boolean>;
+  updateProfile: (updatedData: Partial<User>) => Promise<boolean>;
 }
 
 const DEMO_ACCOUNTS: Record<UserRole, User> = {
@@ -109,38 +134,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user]);
 
-  const login = async (email: string, role: UserRole = 'farmer'): Promise<boolean> => {
-    // In our client-side prototype, check if matching demo or synthesize
-    const normalized = email.toLowerCase().trim();
-    if (normalized.includes('admin')) {
-      setUser(DEMO_ACCOUNTS.admin);
-      return true;
-    }
-    if (normalized.includes('agro') || normalized.includes('icar')) {
-      setUser(DEMO_ACCOUNTS.agronomist);
-      return true;
-    }
+  const login = async (email: string, role: UserRole = 'farmer', password?: string): Promise<boolean> => {
+    const pwd = password || localStorage.getItem(`agrigenius_pwd_${email.toLowerCase().trim()}`) || 'admin2026';
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim(), password: pwd })
+    });
     
-    // Synthesize user with selected role
-    const newUser: User = {
-      id: `usr_${Date.now()}`,
-      name: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      email,
-      role,
-      state: 'All India',
-      organization: role === 'admin' ? 'KCC Administration' : 'Independent Farm',
-    };
-    setUser(newUser);
-    return true;
+    if (res.ok) {
+      const dbUser = await res.json();
+      const loggedInUser: User = {
+        id: `usr_${dbUser.id}`,
+        name: dbUser.name || dbUser.username,
+        email: dbUser.email,
+        phone: dbUser.phone,
+        dob: dbUser.dob,
+        place: dbUser.place,
+        country: dbUser.country || 'India',
+        state: dbUser.state || dbUser.place || 'All India',
+        district: dbUser.district || '',
+        village: dbUser.village || '',
+        role: (dbUser.role as UserRole) || role,
+        organization: 'AgriGenius Verified Account'
+      };
+      setUser(loggedInUser);
+      return true;
+    }
+
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'Invalid email or password. Please verify and try again.');
   };
 
-  const signup = async (userData: Omit<User, 'id'>): Promise<boolean> => {
-    const newUser: User = {
-      ...userData,
-      id: `usr_${Date.now()}`,
-    };
-    setUser(newUser);
-    return true;
+  const signup = async (userData: Omit<User, 'id'> & { password?: string }): Promise<boolean> => {
+    const pwd = userData.password || localStorage.getItem(`agrigenius_pwd_${userData.email.toLowerCase()}`) || 'farmer2026';
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: userData.name,
+        email: userData.email,
+        password: pwd,
+        phone: userData.phone,
+        dob: userData.dob,
+        place: userData.place,
+        country: userData.country || 'India',
+        state: userData.state,
+        district: userData.district,
+        village: userData.village,
+        role: userData.role || 'farmer'
+      })
+    });
+    
+    if (res.ok) {
+      const saved = await res.json();
+      const newUser: User = {
+        ...userData,
+        id: `usr_${saved.id}`,
+        name: saved.name || userData.name,
+        email: saved.email || userData.email,
+        phone: saved.phone || userData.phone,
+        dob: saved.dob || userData.dob,
+        place: saved.place || userData.place,
+        country: saved.country || userData.country || 'India',
+        state: saved.state || userData.state,
+        district: saved.district || userData.district,
+        village: saved.village || userData.village,
+        role: (saved.role as UserRole) || userData.role || 'farmer'
+      };
+      setUser(newUser);
+      return true;
+    }
+
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || 'User already exists. Try login.');
   };
 
   const logout = () => {
@@ -156,6 +223,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(DEMO_ACCOUNTS[role]);
   };
 
+  const loginWithGoogleToken = async (payload: {
+    credential?: string;
+    access_token?: string;
+    email?: string;
+    name?: string;
+    role?: UserRole;
+    phone?: string;
+    dob?: string;
+    place?: string;
+    country?: string;
+    state?: string;
+    district?: string;
+    village?: string;
+  }): Promise<{ success: boolean; isNewUser: boolean; user: User }> => {
+    const res = await fetch('/api/auth/google-verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Google authentication verification failed.');
+    }
+
+    const data = await res.json();
+    const dbUser = data.user;
+    const verifiedUser: User = {
+      id: `usr_${dbUser.id}`,
+      name: dbUser.name || dbUser.username,
+      email: dbUser.email,
+      phone: dbUser.phone || '+91 98765 43210',
+      dob: dbUser.dob || '15/08/1995',
+      place: dbUser.place || 'Andhra Pradesh, India',
+      country: dbUser.country || 'India',
+      state: dbUser.state || 'Andhra Pradesh',
+      district: dbUser.district || 'Guntur',
+      village: dbUser.village || 'Tenali',
+      role: (dbUser.role as UserRole) || payload.role || 'farmer',
+      organization: 'Google Verified Account',
+      avatar: dbUser.avatar || ''
+    };
+
+    setUser(verifiedUser);
+    try {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(verifiedUser));
+    } catch {
+      // storage unavailable
+    }
+
+    return { success: true, isNewUser: !!data.is_new_user, user: verifiedUser };
+  };
+
   const loginWithGoogle = async (customAccount?: { 
     name: string; 
     email: string; 
@@ -164,29 +284,120 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     phone?: string;
     dob?: string;
     place?: string;
+    country?: string;
+    state?: string;
+    district?: string;
+    village?: string;
+    password?: string;
   }): Promise<boolean> => {
-    const isTargetAdmin = (customAccount?.email || '').toLowerCase().includes('admin');
-    const role: UserRole = customAccount?.role || (isTargetAdmin ? 'admin' : 'farmer');
-    
-    const googleUser: User = {
-      id: `usr_google_${Date.now()}`,
-      name: customAccount?.name || 'Raviteja',
+    const res = await loginWithGoogleToken({
       email: customAccount?.email || 'ravitejakv777@gmail.com',
-      role,
-      phone: customAccount?.phone || '+91 98765 43210',
-      dob: customAccount?.dob || '15/08/1995',
-      place: customAccount?.place || 'Andhra Pradesh, India',
-      organization: 'Google Verified Account',
-      state: customAccount?.place || 'Andhra Pradesh',
-      avatar: ''
-    };
+      name: customAccount?.name || 'Raviteja',
+      role: customAccount?.role || ((customAccount?.email || '').toLowerCase().includes('admin') ? 'admin' : 'farmer'),
+      phone: customAccount?.phone,
+      dob: customAccount?.dob,
+      place: customAccount?.place,
+      country: customAccount?.country || 'India',
+      state: customAccount?.state,
+      district: customAccount?.district,
+      village: customAccount?.village
+    });
+    return res.success;
+  };
+
+  const deleteAccount = async (reason: string, feedback?: string): Promise<boolean> => {
+    if (!user?.email) throw new Error("No active user session to delete.");
     try {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(googleUser));
-    } catch {
-      // storage unavailable
+      const res = await fetch('/api/auth/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email.trim(),
+          reason: reason.trim(),
+          feedback: feedback?.trim() || ''
+        })
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Failed to delete account from server.");
+      }
+    } catch (err: unknown) {
+      console.warn("Delete account request warning:", err);
+      // Even if network fails, proceed with local account teardown if needed
     }
-    setUser(googleUser);
+
+    try {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem(`agrigenius_pwd_${user.email.toLowerCase().trim()}`);
+    } catch {
+      // ignore
+    }
+    setUser(null);
     return true;
+  };
+
+  const updateProfile = async (updatedData: Partial<User>): Promise<boolean> => {
+    if (!user?.email) throw new Error("No active user session to update.");
+
+    try {
+      const res = await fetch('/api/auth/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email.trim(),
+          name: updatedData.name,
+          phone: updatedData.phone,
+          dob: updatedData.dob,
+          place: updatedData.place,
+          country: updatedData.country,
+          state: updatedData.state,
+          district: updatedData.district,
+          village: updatedData.village,
+          role: updatedData.role
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Failed to update profile on database.");
+      }
+
+      const updated = await res.json();
+      const updatedUser: User = {
+        ...user,
+        name: updated.name || updatedData.name || user.name,
+        phone: updated.phone || updatedData.phone || user.phone,
+        dob: updated.dob || updatedData.dob || user.dob,
+        place: updated.place || updatedData.place || user.place,
+        country: updated.country || updatedData.country || user.country || 'India',
+        state: updated.state || updatedData.state || user.state,
+        district: updated.district || updatedData.district || user.district,
+        village: updated.village || updatedData.village || user.village,
+        role: (updated.role as UserRole) || (updatedData.role as UserRole) || user.role,
+      };
+
+      setUser(updatedUser);
+      try {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+      } catch {
+        // ignore
+      }
+      return true;
+    } catch (err: unknown) {
+      // Local fallback in case network issues occur
+      const updatedUser: User = {
+        ...user,
+        ...updatedData
+      };
+      setUser(updatedUser);
+      try {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updatedUser));
+      } catch {
+        // ignore
+      }
+      if (err instanceof Error) throw err;
+      return true;
+    }
   };
 
   return (
@@ -200,6 +411,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         quickLogin,
         loginWithGoogle,
+        loginWithGoogleToken,
+        deleteAccount,
+        updateProfile,
       }}
     >
       {children}
