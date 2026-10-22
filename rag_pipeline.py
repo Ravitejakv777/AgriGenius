@@ -24,12 +24,16 @@ import numpy as np
 from google import genai
 from google.genai import types
 from sentence_transformers import SentenceTransformer
+from sentence_transformers.cross_encoder import CrossEncoder
+from huggingface_hub import InferenceClient
 
 
 CHROMA_DB_PATH = "./chroma_kcc_db"
 COLLECTION_NAME = "kcc_agri_advisor"
 EMBED_MODEL_NAME = "l3cube-pune/hindi-sentence-bert-nli"
+CROSS_ENCODER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 LLM_MODEL_NAME = "gemini-3.5-flash"
+LLAMA_MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 DEFAULT_TOP_K = 5
 DEFAULT_FETCH_K = 20
 MMR_LAMBDA = 0.72
@@ -38,11 +42,12 @@ MMR_LAMBDA = 0.72
 SYSTEM_INSTRUCTION = """You are AgriGenius, a helpful agricultural advisory assistant for farmers in India.
 
 Rules:
-- Answer only using the provided Kisan Call Centre advisory context.
-- If the context is not enough to answer safely, say that the available evidence is insufficient.
+- Answer ONLY using the provided Kisan Call Centre advisory context. Do not use parametric world knowledge.
+- If the context is not enough to answer safely, abstain by saying that the available evidence is insufficient.
 - Respond in the same language as the farmer's question whenever possible.
-- Keep the answer practical, specific, and concise.
+- Keep the answer practical, specific, and concise (maximum 3 sentences).
 - Do not invent pesticide doses, fertilizer quantities, dates, schemes, or weather information.
+- Cite the exact source you use by referencing its Rank (e.g., "[Source 1]").
 """
 
 
@@ -212,13 +217,18 @@ class AgriGeniusRAG:
         chroma_path: str = CHROMA_DB_PATH,
         collection_name: str = COLLECTION_NAME,
         embed_model_name: str = EMBED_MODEL_NAME,
+        cross_encoder_name: str = CROSS_ENCODER_MODEL_NAME,
         llm_model_name: str = LLM_MODEL_NAME,
+        llama_model_name: str = LLAMA_MODEL_NAME,
     ) -> None:
         self.chroma_path = chroma_path
         self.collection_name = collection_name
         self.embed_model_name = embed_model_name
+        self.cross_encoder_name = cross_encoder_name
         self.llm_model_name = llm_model_name
+        self.llama_model_name = llama_model_name
         self.embedding_model = SentenceTransformer(embed_model_name)
+        self.cross_encoder = CrossEncoder(cross_encoder_name)
         self.chroma_client = chromadb.PersistentClient(path=chroma_path)
         self.collection = self.chroma_client.get_collection(collection_name)
 
@@ -231,7 +241,8 @@ class AgriGeniusRAG:
         top_k: int = DEFAULT_TOP_K,
         fetch_k: int = DEFAULT_FETCH_K,
         where: dict[str, Any] | None = None,
-        use_mmr: bool = True,
+        use_mmr: bool = False,
+        use_cross_encoder: bool = True,
         drop_non_answers: bool = True,
         auto_metadata_filter: bool = True,
     ) -> list[RetrievedSource]:
@@ -266,7 +277,14 @@ class AgriGeniusRAG:
                 }
             )
 
-        if use_mmr and candidates and candidates[0]["embedding"] is not None:
+        if use_cross_encoder and candidates:
+            pairs = [(query, item["text"]) for item in candidates]
+            scores = self.cross_encoder.predict(pairs)
+            for i, score in enumerate(scores):
+                candidates[i]["similarity"] = float(score)  # Overwrite with CE score
+            candidates.sort(key=lambda x: x["similarity"], reverse=True)
+            selected = candidates[:top_k]
+        elif use_mmr and candidates and candidates[0]["embedding"] is not None:
             selected = self._mmr_select(candidates, top_k)
         else:
             selected = candidates[:top_k]
@@ -329,21 +347,38 @@ Farmer question: {query}
 
 Answer:"""
 
-    def generate_answer(self, query: str, sources: list[RetrievedSource]) -> str:
+    def generate_answer(self, query: str, sources: list[RetrievedSource], llm_provider: str = "gemini") -> str:
         if not sources:
             return "I do not have enough reliable KCC context to answer this question safely."
 
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+        prompt = self.build_prompt(query, sources)
 
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=self.llm_model_name,
-            contents=self.build_prompt(query, sources),
-            config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
-        )
-        return response.text or ""
+        if llm_provider == "llama":
+            hf_token = os.environ.get("HF_TOKEN")
+            if not hf_token:
+                return "Error: HF_TOKEN environment variable is not set for Llama 3 access."
+            client = InferenceClient(model=self.llama_model_name, token=hf_token)
+            messages = [
+                {"role": "system", "content": SYSTEM_INSTRUCTION},
+                {"role": "user", "content": prompt}
+            ]
+            try:
+                response = client.chat_completion(messages=messages, stream=False, max_tokens=500, temperature=0.2)
+                return response.choices[0].message.content or ""
+            except Exception as e:
+                return f"Error calling Llama 3: {e}"
+        else:
+            api_key = os.environ.get("GEMINI_API_KEY")
+            if not api_key:
+                raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=self.llm_model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
+            )
+            return response.text or ""
 
     def answer_query(
         self,
@@ -352,9 +387,10 @@ Answer:"""
         fetch_k: int = DEFAULT_FETCH_K,
         where: dict[str, Any] | None = None,
         generate: bool = True,
+        llm_provider: str = "gemini",
     ) -> dict[str, Any]:
         sources = self.retrieve_sources(query, top_k=top_k, fetch_k=fetch_k, where=where)
-        answer = self.generate_answer(query, sources) if generate else ""
+        answer = self.generate_answer(query, sources, llm_provider) if generate else ""
         return {
             "query": query,
             "answer": answer,
@@ -363,24 +399,52 @@ Answer:"""
             "collection_count": self.collection_count(),
         }
 
-    def generate_answer_stream(self, query: str, sources: list[RetrievedSource]):
+    def generate_answer_stream(self, query: str, sources: list[RetrievedSource], llm_provider: str = "gemini"):
         if not sources:
             yield "I do not have enough reliable KCC context to answer this question safely."
             return
 
+        prompt = self.build_prompt(query, sources)
+
+        if llm_provider == "llama":
+            yield from self._generate_stream_llama(prompt)
+        else:
+            yield from self._generate_stream_gemini(prompt)
+
+    def _generate_stream_gemini(self, prompt: str):
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
-            raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+            yield "Error: GEMINI_API_KEY environment variable is not set."
+            return
 
         client = genai.Client(api_key=api_key)
         response_stream = client.models.generate_content_stream(
             model=self.llm_model_name,
-            contents=self.build_prompt(query, sources),
+            contents=prompt,
             config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
         )
         for chunk in response_stream:
             if chunk.text:
                 yield chunk.text
+
+    def _generate_stream_llama(self, prompt: str):
+        hf_token = os.environ.get("HF_TOKEN")
+        if not hf_token:
+            yield "Error: HF_TOKEN environment variable is not set for Llama 3 access."
+            return
+            
+        client = InferenceClient(model=self.llama_model_name, token=hf_token)
+        messages = [
+            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "user", "content": prompt}
+        ]
+        try:
+            stream = client.chat_completion(messages=messages, stream=True, max_tokens=500, temperature=0.2)
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as e:
+            yield f"Error calling Llama 3: {e}"
 
     def answer_query_stream(
         self,
@@ -388,6 +452,7 @@ Answer:"""
         top_k: int = DEFAULT_TOP_K,
         fetch_k: int = DEFAULT_FETCH_K,
         where: dict[str, Any] | None = None,
+        llm_provider: str = "gemini",
     ):
         sources = self.retrieve_sources(query, top_k=top_k, fetch_k=fetch_k, where=where)
         # First yield the sources so the UI can show them immediately
@@ -399,7 +464,7 @@ Answer:"""
         }
         
         # Then yield the streamed chunks
-        for chunk in self.generate_answer_stream(query, sources):
+        for chunk in self.generate_answer_stream(query, sources, llm_provider=llm_provider):
             yield {
                 "type": "chunk",
                 "content": chunk,
