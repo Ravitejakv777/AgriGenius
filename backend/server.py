@@ -29,6 +29,7 @@ class ChatRequest(BaseModel):
     top_k: Optional[int] = 5
     crop: Optional[str] = None
     state: Optional[str] = None
+    llm_provider: Optional[str] = "gemini"
 
 @app.get("/api/health")
 def health_check():
@@ -58,7 +59,8 @@ def chat(request: ChatRequest):
         query=request.query,
         top_k=request.top_k,
         where=where,
-        generate=True
+        generate=True,
+        llm_provider=request.llm_provider
     )
     
     # serialize sources
@@ -93,7 +95,8 @@ def chat_stream(request: ChatRequest):
         stream_generator = rag.answer_query_stream(
             query=request.query,
             top_k=request.top_k,
-            where=where
+            where=where,
+            llm_provider=request.llm_provider
         )
         for chunk in stream_generator:
             if chunk["type"] == "metadata":
