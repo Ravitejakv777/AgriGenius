@@ -7,11 +7,13 @@ keys.env
 
 
 chroma_kcc_db/
+chroma_kcc_db*/
 *.csv
 *.parquet
 *.bin
 *.pickle
 kcc_index_checkpoint.json
+llm_evaluation_results.json
 
 .DS_Store
 

@@ -41,11 +41,10 @@ export function AboutPage() {
         {/* Hero Section */}
         <div className="text-center mb-8 sm:mb-16 max-w-3xl mx-auto">
           <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-900 dark:text-white mb-3 sm:mb-6 tracking-tight">
-            Empowering Farmers with <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-400 dark:from-white dark:to-neutral-400">Grounded AI</span>
+            Agricultural RAG Prototype for <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-primary-400 dark:from-white dark:to-neutral-400">Evidence-backed Answers</span>
           </h2>
           <p className="text-sm sm:text-lg text-slate-600 dark:text-neutral-400 leading-relaxed">
-            AgriGenius is a bilingual AI farming assistant powered by a Retrieval-Augmented Generation (RAG) architecture. 
-            By leveraging real, vetted advisory records from the Kisan Call Centre (KCC), we provide highly accurate, locally relevant answers to Indian farmers in both English and Hindi.
+            AgriGenius is a Hindi, Telugu, and English RAG prototype. It retrieves Kisan Call Centre (KCC) passages for the answer generator to use. Retrieval quality, local relevance, and safety still require evaluation before farmer-facing deployment.
           </p>
         </div>
 
@@ -62,15 +61,15 @@ export function AboutPage() {
             <div className="bg-amber-50 dark:bg-white/10 p-3 rounded-full mb-4">
               <Activity className="w-6 h-6 text-amber-600 dark:text-white" />
             </div>
-            <h3 className="font-semibold text-slate-800 dark:text-white mb-2">Bilingual Support</h3>
-            <p className="text-sm text-slate-500 dark:text-neutral-400">Automatically detects English or Hindi to provide accessible support across demographics.</p>
+            <h3 className="font-semibold text-slate-800 dark:text-white mb-2">Multilingual Support</h3>
+            <p className="text-sm text-slate-500 dark:text-neutral-400">The retrieval model and interface target Hindi, Telugu, and English; end-to-end quality checks are pending.</p>
           </div>
           <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-slate-200 dark:border-neutral-800 shadow-sm flex flex-col items-center text-center">
             <div className="bg-blue-50 dark:bg-white/10 p-3 rounded-full mb-4">
               <Shield className="w-6 h-6 text-blue-600 dark:text-white" />
             </div>
-            <h3 className="font-semibold text-slate-800 dark:text-white mb-2">Grounded Responses</h3>
-            <p className="text-sm text-slate-500 dark:text-neutral-400">The LLM uses strict prompt engineering to prevent hallucination and stick to retrieved facts.</p>
+            <h3 className="font-semibold text-slate-800 dark:text-white mb-2">KCC Source Display</h3>
+            <p className="text-sm text-slate-500 dark:text-neutral-400">Chat results can show retrieved KCC passages. A source citation alone does not verify every generated claim.</p>
           </div>
         </div>
         

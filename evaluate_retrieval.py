@@ -25,6 +25,7 @@ def evaluate(query_file: str, top_k: int, fetch_k: int) -> None:
     rag = AgriGeniusRAG()
     crop_hits = 0
     category_hits = 0
+    language_totals: dict[str, list[int]] = {}
 
     print(f"Collection size: {rag.collection_count():,}")
     print(f"Evaluating {len(cases)} demo queries\n")
@@ -37,6 +38,11 @@ def evaluate(query_file: str, top_k: int, fetch_k: int) -> None:
         )
         crop_hits += int(crop_hit)
         category_hits += int(category_hit)
+        language = case.get("language", "Unspecified")
+        totals = language_totals.setdefault(language, [0, 0, 0])
+        totals[0] += 1
+        totals[1] += int(crop_hit)
+        totals[2] += int(category_hit)
 
         top_labels = [
             f"{source.metadata.get('Crop', '?')} / {source.metadata.get('QueryType', '?')}"
@@ -51,6 +57,12 @@ def evaluate(query_file: str, top_k: int, fetch_k: int) -> None:
     print("=" * 72)
     print(f"Crop hit rate@{top_k}: {crop_hits}/{n} ({crop_hits / n * 100:.1f}%)")
     print(f"Category hit rate@{top_k}: {category_hits}/{n} ({category_hits / n * 100:.1f}%)")
+    for language, (count, language_crop_hits, language_category_hits) in language_totals.items():
+        print(
+            f"{language}: crop {language_crop_hits}/{count} "
+            f"({language_crop_hits / count * 100:.1f}%), category "
+            f"{language_category_hits}/{count} ({language_category_hits / count * 100:.1f}%)"
+        )
     print("=" * 72)
 
 

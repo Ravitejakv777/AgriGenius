@@ -5,6 +5,7 @@ import { ChatPage } from './pages/ChatPage';
 import { AboutPage } from './pages/AboutPage';
 import { TeamPage } from './pages/TeamPage';
 import { ReportPage } from './pages/ReportPage';
+import { EvaluationPage } from './pages/EvaluationPage';
 
 import { GlobalBottomNav } from './components/GlobalBottomNav';
 
@@ -19,6 +20,7 @@ function AnimatedRoutes() {
         <Route path="/report" element={<ReportPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/metrics" element={<AboutPage />} />
+        <Route path="/evaluation" element={<EvaluationPage />} />
         <Route path="/team" element={<TeamPage />} />
       </Routes>
     </AnimatePresence>

@@ -57,18 +57,18 @@ export interface CropReportState {
 
 const DEFAULT_STATE: CropReportState = {
   language: 'en',
-  fullName: 'Ramesh Kumar',
-  location: 'Anantapur, Andhra Pradesh',
+  fullName: '',
+  location: '',
   landAcres: 5,
-  soilType: 'Red soil',
-  waterSource: 'Rainfall',
-  waterAvailability: 'Limited',
-  previousCrop: 'Groundnut',
-  previousYield: '6 quintals/acre',
+  soilType: 'Unknown',
+  waterSource: 'Unknown',
+  waterAvailability: 'Unknown',
+  previousCrop: '',
+  previousYield: '',
   nextSeason: 'Kharif',
-  investmentBudget: 75000,
-  sellingChannel: 'Local mandi',
-  mainObjective: 'Maximum profit',
+  investmentBudget: 0,
+  sellingChannel: 'Not specified',
+  mainObjective: 'Balanced returns',
 };
 
 // UI text localized for questionnaire navigation
@@ -93,15 +93,15 @@ const UI_TEXT: Record<LanguageCode, {
     of: 'of',
     next: 'Next Question',
     back: 'Back',
-    generate: 'Generate Crop Recommendation Report',
-    generating: 'Calculating Agronomic ROI & Mandi Benchmarks...',
-    newReport: 'New Recommendation',
+    generate: 'Calculate Illustrative Crop Estimate',
+    generating: 'Calculating an illustrative scenario...',
+    newReport: 'New Estimate',
     copy: 'Copy Summary',
     copied: 'Copied!',
     downloadPdf: 'Download PDF Report',
-    consultAi: 'Consult AI Assistant about this Report',
-    reportTitle: 'Next Profitable Crop Recommendation Report',
-    reportSubtitle: 'Personalized AI-powered agricultural advisory',
+    consultAi: 'Ask the Assistant to Check KCC Guidance',
+    reportTitle: 'Illustrative Crop Planning Estimate',
+    reportSubtitle: 'Prototype scenario; verify locally before acting',
     previousReports: 'Previous Reports',
   },
   hi: {
@@ -109,15 +109,15 @@ const UI_TEXT: Record<LanguageCode, {
     of: 'का',
     next: 'अगला प्रश्न',
     back: 'पीछे',
-    generate: 'लाभकारी फसल अनुशंसा रिपोर्ट तैयार करें',
-    generating: 'कृषि अर्थशास्त्र और मंडी डेटा का विश्लेषण...',
-    newReport: 'नई अनुशंसा',
+    generate: 'उदाहरण आधारित फसल अनुमान तैयार करें',
+    generating: 'उदाहरण आधारित अनुमान की गणना...',
+    newReport: 'नया अनुमान',
     copy: 'कॉपी करें',
     copied: 'कॉपी हो गया!',
     downloadPdf: 'पीडीएफ डाउनलोड करें',
-    consultAi: 'इस रिपोर्ट पर एआई सहायक से चर्चा करें',
-    reportTitle: 'अगली सबसे लाभदायक फसल अनुशंसा रिपोर्ट',
-    reportSubtitle: 'व्यक्तिगत एआई-संचालित कृषि सलाहकार रिपोर्ट',
+    consultAi: 'KCC सलाह जाँचने के लिए सहायक से पूछें',
+    reportTitle: 'उदाहरण आधारित फसल योजना अनुमान',
+    reportSubtitle: 'प्रोटोटाइप अनुमान; निर्णय से पहले स्थानीय पुष्टि करें',
     previousReports: 'पिछली रिपोर्टें',
   },
   te: {
@@ -125,15 +125,15 @@ const UI_TEXT: Record<LanguageCode, {
     of: 'లో',
     next: 'తరువాతి ప్రశ్న',
     back: 'వెనుకకు',
-    generate: 'లాభదాయక పంట సిఫార్సు నివేదికను రూపొందించండి',
-    generating: 'దిగుబడి & మార్కెట్ విశ్లేషణ జరుగుతోంది...',
-    newReport: 'కొత్త నివేదిక',
+    generate: 'ఊహాత్మక పంట అంచనాను రూపొందించండి',
+    generating: 'ఊహాత్మక అంచనాను లెక్కిస్తోంది...',
+    newReport: 'కొత్త అంచనా',
     copy: 'కాపీ చేయండి',
     copied: 'కాపీ చేయబడింది!',
     downloadPdf: 'PDF నివేదికను డౌన్‌లోడ్ చేయండి',
-    consultAi: 'ఈ నివేదికపై AI నిపుణుడిని సంప్రదించండి',
-    reportTitle: 'తదుపరి లాభదాయక పంట సిఫార్సు నివేదిక',
-    reportSubtitle: 'వ్యక్తిగతీకరించిన AI ఆధారిత వ్యవసాయ సలహా పత్రం',
+    consultAi: 'KCC సలహాను తనిఖీ చేయడానికి సహాయకుడిని అడగండి',
+    reportTitle: 'ఊహాత్మక పంట ప్రణాళిక అంచనా',
+    reportSubtitle: 'ప్రోటోటైప్ అంచనా; నిర్ణయానికి ముందు స్థానికంగా ధృవీకరించండి',
     previousReports: 'మునుపటి నివేదికలు',
   },
   mr: {
@@ -141,15 +141,15 @@ const UI_TEXT: Record<LanguageCode, {
     of: 'पैकी',
     next: 'पुढील प्रश्न',
     back: 'मागे',
-    generate: 'पीक शिफारस अहवाल तयार करा',
-    generating: 'बाजारभाव आणि उत्पादन विश्लेषण सुरू आहे...',
-    newReport: 'नवीन अहवाल',
+    generate: 'उदाहरणात्मक पीक अंदाज तयार करा',
+    generating: 'उदाहरणात्मक अंदाज मोजत आहे...',
+    newReport: 'नवीन अंदाज',
     copy: 'कॉपी करा',
     copied: 'कॉपी केले!',
     downloadPdf: 'पीडीएफ अहवाल डाउनलोड करा',
-    consultAi: 'या अहवालावर AI सहाय्यकाशी चर्चा करा',
-    reportTitle: 'पुढील सर्वाधिक फायदेशीर पीक शिफारस अहवाल',
-    reportSubtitle: 'वैयक्तिकृत AI-चालित कृषी सल्लागार अहवाल',
+    consultAi: 'KCC मार्गदर्शन तपासण्यासाठी सहाय्यकाला विचारा',
+    reportTitle: 'उदाहरणात्मक पीक नियोजन अंदाज',
+    reportSubtitle: 'प्रोटोटाइप अंदाज; निर्णयापूर्वी स्थानिक पडताळणी करा',
     previousReports: 'मागील अहवाल',
   },
   ta: {
@@ -157,35 +157,35 @@ const UI_TEXT: Record<LanguageCode, {
     of: 'இல்',
     next: 'அடுத்த கேள்வி',
     back: 'பின்செல்',
-    generate: 'லாபகரமான பயிர் பரிந்துரை அறிக்கையை உருவாக்குக',
-    generating: 'சந்தை மற்றும் வேளாண் தரவு பகுப்பாய்வு...',
-    newReport: 'புதிய அறிக்கை',
+    generate: 'எடுத்துக்காட்டு பயிர் மதிப்பீட்டை உருவாக்குக',
+    generating: 'எடுத்துக்காட்டு மதிப்பீடு கணக்கிடப்படுகிறது...',
+    newReport: 'புதிய மதிப்பீடு',
     copy: 'நகலெடு',
     copied: 'நகலெடுக்கப்பட்டது!',
     downloadPdf: 'PDF அறிக்கையை பதிவிறக்கவும்',
-    consultAi: 'இந்த அறிக்கை குறித்து AI உதவியாளரிடம் கேட்கவும்',
-    reportTitle: 'அடுத்த லாபகரமான பயிர் பரிந்துரை அறிக்கை',
-    reportSubtitle: 'தனிப்பயனாக்கப்பட்ட AI வேளாண்மை ஆலோசனை அறிக்கை',
+    consultAi: 'KCC வழிகாட்டலைச் சரிபார்க்க உதவியாளரிடம் கேட்கவும்',
+    reportTitle: 'எடுத்துக்காட்டு பயிர் திட்ட மதிப்பீடு',
+    reportSubtitle: 'முன்மாதிரி மதிப்பீடு; செயலுக்கு முன் உள்ளூரில் சரிபார்க்கவும்',
     previousReports: 'முந்தைய அறிக்கைகள்',
   },
 };
 
 const GENERATION_STAGES = [
   {
-    title: 'Soil & Micro-Climate Compatibility',
-    detail: 'Matching local soil chemistry, water requirements & weather trends',
+    title: 'Preparing the Scenario',
+    detail: 'Using the details entered in the form',
   },
   {
-    title: 'APMC Mandi Price Benchmarking',
-    detail: 'Fetching live market modal prices & nearby demand patterns',
+    title: 'Applying Example Assumptions',
+    detail: 'Using fixed illustrative yield, cost, and price values',
   },
   {
-    title: 'Yield & Cost Formula Modeling',
-    detail: 'Calculating gross revenue, cultivation costs & net profit per acre',
+    title: 'Calculating the Estimate',
+    detail: 'Calculating illustrative gross revenue and net return',
   },
   {
-    title: 'Agronomic Action Plan Synthesis',
-    detail: 'Structuring fertilizer schedule, risk mitigation & crop rotation',
+    title: 'Writing Verification Steps',
+    detail: 'Listing local checks to make before choosing a crop',
   },
 ];
 
@@ -274,7 +274,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
       {
         name: 'Wheat (Sharbati / HD-2967)',
         badge: 'Assured Top Choice',
-        why: 'Excellent winter grain filling with strong MSP market absorption and staple demand.',
+        why: 'Illustrative option for a winter cereal scenario; confirm local variety, sowing window, and procurement conditions.',
         cost: 16000,
         yieldQ: 18,
         price: 2450,
@@ -282,7 +282,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
       {
         name: 'Mustard / Rapeseed',
         badge: 'High Return on Cost',
-        why: 'Low irrigation requirement with surging domestic edible oil mandi prices.',
+        why: 'Illustrative option to compare for water needs and rotation; check current local prices and crop suitability.',
         cost: 12000,
         yieldQ: 9,
         price: 5650,
@@ -290,7 +290,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
       {
         name: 'Chickpea (Chana / Bengal Gram)',
         badge: 'Soil Enriching Rotation',
-        why: 'Atmospheric nitrogen-fixing legume that cuts next season fertilizer expenses.',
+        why: 'Legume option to assess for rotation and soil conditions; verify local agronomic guidance.',
         cost: 14000,
         yieldQ: 8,
         price: 5400,
@@ -301,7 +301,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
       {
         name: 'Green Gram (Moong)',
         badge: 'Fast 65-Day Harvest',
-        why: 'Quick turnaround pulse crop fetching premium summer prices with minimal irrigation.',
+        why: 'Illustrative short-duration pulse option; confirm season, water needs, and local market conditions.',
         cost: 11000,
         yieldQ: 5,
         price: 8550,
@@ -309,7 +309,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
       {
         name: 'Sesame (Til)',
         badge: 'Drought Tolerant Top Pick',
-        why: 'Deep taproot system thrives in high summer temperatures with low input risk.',
+        why: 'Illustrative oilseed option; assess heat, soil moisture, and local production risks.',
         cost: 9500,
         yieldQ: 4,
         price: 8200,
@@ -317,7 +317,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
       {
         name: 'Summer Groundnut',
         badge: 'High Oil Recovery',
-        why: 'High solar radiation during pod filling delivers superior kernel weight.',
+        why: 'Illustrative oilseed option; compare its water needs and production risks for your location.',
         cost: 19000,
         yieldQ: 11,
         price: 6800,
@@ -330,7 +330,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
         {
           name: 'Pearl millet (Bajra)',
           badge: 'Top Recommendation',
-          why: 'Can be suitable for relatively dry conditions when the variety and sowing conditions match the location. High drought tolerance with verified APMC demand.',
+          why: 'Can suit relatively dry conditions when the variety and sowing conditions match the location; verify locally.',
           cost: 12000,
           yieldQ: 6,
           price: 2500,
@@ -338,7 +338,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
         {
           name: 'Pigeon pea (Red gram)',
           badge: 'High Value Pulse',
-          why: 'A pulse crop worth evaluating for suitable soils, rainfall and crop rotation. Excellent hedge against mid-season dry spells.',
+          why: 'A pulse crop to evaluate for soil, rainfall, and rotation; outcomes depend on local conditions.',
           cost: 15000,
           yieldQ: 8,
           price: 3000,
@@ -357,7 +357,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
         {
           name: 'Cotton (Bt Hybrid)',
           badge: 'Top Cash Crop',
-          why: 'High vegetative vigour in moisture-retentive black soil with strong lint trading demand.',
+          why: 'Consider only where local soil, water, pest pressure, and market conditions are suitable.',
           cost: 22000,
           yieldQ: 9,
           price: 7200,
@@ -365,7 +365,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
         {
           name: 'Soybean (JS 335 / 9560)',
           badge: 'Stable Income',
-          why: 'Short-duration kharif oilseed with steady oil mill procurement at local mandis.',
+          why: 'Oilseed option to compare for the season; check local varieties, prices, and production risks.',
           cost: 14000,
           yieldQ: 8,
           price: 4600,
@@ -373,7 +373,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
         {
           name: 'Maize (Kharif Corn)',
           badge: 'Low Production Risk',
-          why: 'Robust fodder and poultry feed demand with strong resilience against torrential monsoon downpours.',
+          why: 'Compare local grain or fodder uses, drainage needs, and suitable varieties before planting.',
           cost: 15000,
           yieldQ: 24,
           price: 2150,
@@ -384,7 +384,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
         {
           name: 'Paddy / Basmati Rice',
           badge: 'Water-Assured Top Pick',
-          why: 'Optimal for loamy soils with guaranteed procurement and high staple milling demand.',
+          why: 'Consider only where water, soil, variety, and local procurement conditions are suitable.',
           cost: 21000,
           yieldQ: 22,
           price: 2200,
@@ -392,7 +392,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
         {
           name: 'Maize (Hybrid)',
           badge: 'High ROI Alternative',
-          why: 'High photosynthetic efficiency delivering substantial net return with moderate irrigation.',
+          why: 'Compare local varieties, water needs, and market conditions before planting.',
           cost: 15000,
           yieldQ: 22,
           price: 2150,
@@ -418,7 +418,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
 
     return {
       name: c.name,
-      badge: c.badge,
+      badge: 'Illustrative option',
       whyConsider: c.why,
       cultivationCostPerAcre: c.cost,
       expectedYieldPerAcre: c.yieldQ,
@@ -430,8 +430,10 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
     };
   });
 
-  // Pick best recommended crop (highest net return or matching objective)
-  const topSelectedCrop = topCrops[1] || topCrops[0]; // Matches Crop B (Pigeon pea / ₹9,000/acre in the screenshot)
+  // The ranking uses illustrative assumptions and is not a live market forecast.
+  const topSelectedCrop = topCrops.reduce((best, crop) =>
+    crop.netReturnPerAcre > best.netReturnPerAcre ? crop : best
+  , topCrops[0]);
   const estTotalNet = topSelectedCrop.netReturnPerAcre * acres;
   const minRange = Math.round((estTotalNet * 0.88) / 1000) * 1000;
   const maxRange = Math.round((estTotalNet * 1.15) / 1000) * 1000;
@@ -441,13 +443,13 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
     date: now,
     language: targetLang,
     farmer: {
-      name: form.fullName.trim() || 'Ramesh Kumar',
-      location: form.location.trim() || 'Anantapur, Andhra Pradesh',
+      name: form.fullName.trim() || 'Not provided',
+      location: form.location.trim() || 'Not provided',
       landAcres: acres,
       soilType: form.soilType,
       waterAvailability: `${form.waterAvailability} (${form.waterSource})`,
-      previousCrop: form.previousCrop.trim() || 'Groundnut',
-      previousYield: form.previousYield.trim() || '6 quintals/acre',
+      previousCrop: form.previousCrop.trim() || 'Not provided',
+      previousYield: form.previousYield.trim() || 'Not provided',
       nextSeason: form.nextSeason,
       investmentBudget: form.investmentBudget,
       mainObjective: form.mainObjective,
@@ -476,73 +478,10 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
       bestCrop: topSelectedCrop.name,
       reason: 'The crop with the best balance of suitability, affordability, expected net return and risk.',
       profitabilityRange: `₹${minRange.toLocaleString('en-IN')} – ₹${maxRange.toLocaleString('en-IN')} across ${acres} acres`,
-      dataFreshness: 'Grounded on APMC live market benchmarks & 347,944 verified KCC records.',
+      dataFreshness: 'Illustrative assumptions only; no live price, weather, or KCC retrieval is used.',
     },
   };
 }
-
-const DEFAULT_PREVIOUS_REPORTS: GeneratedReport[] = [
-  {
-    ...generateRecommendationReport({
-      ...DEFAULT_STATE,
-      fullName: 'Ramesh Kumar',
-      location: 'Anantapur, Andhra Pradesh',
-      landAcres: 20,
-      soilType: 'Red soil',
-      waterSource: 'Borewell',
-      waterAvailability: 'Limited',
-      previousCrop: 'Groundnut',
-      previousYield: '6 quintals/acre',
-      nextSeason: 'Kharif',
-      investmentBudget: 50000,
-      sellingChannel: 'Local mandi',
-      mainObjective: 'Maximum profit',
-      language: 'en',
-    }, 'en'),
-    id: 'AGRI-REC-7559',
-    date: '22 Oct 2026',
-  },
-  {
-    ...generateRecommendationReport({
-      ...DEFAULT_STATE,
-      fullName: 'Suresh Patel',
-      location: 'Mehsana, Gujarat',
-      landAcres: 8,
-      soilType: 'Sandy loam',
-      waterSource: 'Canal',
-      waterAvailability: 'Adequate',
-      previousCrop: 'Wheat',
-      previousYield: '14 quintals/acre',
-      nextSeason: 'Rabi',
-      investmentBudget: 60000,
-      sellingChannel: 'Trader',
-      mainObjective: 'Stable income',
-      language: 'en',
-    }, 'en'),
-    id: 'AGRI-REC-6218',
-    date: '18 Oct 2026',
-  },
-  {
-    ...generateRecommendationReport({
-      ...DEFAULT_STATE,
-      fullName: 'Anil Deshmukh',
-      location: 'Amravati, Maharashtra',
-      landAcres: 12,
-      soilType: 'Black soil',
-      waterSource: 'Rainfall',
-      waterAvailability: 'Adequate',
-      previousCrop: 'Cotton',
-      previousYield: '7 quintals/acre',
-      nextSeason: 'Kharif',
-      investmentBudget: 75000,
-      sellingChannel: 'Direct buyer',
-      mainObjective: 'Maximum profit',
-      language: 'en',
-    }, 'en'),
-    id: 'AGRI-REC-5042',
-    date: '12 Oct 2026',
-  },
-];
 
 /**
  * Clean Single-Page A4 Printable PDF generator matching the exact report layout.
@@ -699,8 +638,8 @@ function downloadCleanPdfReport(report: GeneratedReport) {
 <body>
   <div class="header-box">
     <div class="brand">AgriGenius</div>
-    <div class="title">Next Profitable Crop Recommendation Report</div>
-    <div class="subtitle">Personalized AI-powered agricultural advisory &bull; REF: ${report.id} &bull; DATE: ${report.date}</div>
+    <div class="title">Illustrative Crop Planning Estimate</div>
+    <div class="subtitle">Prototype scenario; verify locally before acting &bull; REF: ${report.id} &bull; DATE: ${report.date}</div>
   </div>
 
   <!-- 1. Farmer Profile -->
@@ -727,8 +666,8 @@ function downloadCleanPdfReport(report: GeneratedReport) {
   </table>
 
   <!-- 2. Top 3 Crop Recommendations (No images as requested) -->
-  <div class="section-title">2. AI's Top 3 Crop Recommendations</div>
-  <div class="section-desc">Illustrative ranking determined using local suitability, season, water, costs and market data.</div>
+  <div class="section-title">2. Illustrative Crop Options</div>
+  <div class="section-desc">Prototype ranking from fixed assumptions and entered details; not a locally validated recommendation.</div>
   <table>
     <thead>
       <tr>
@@ -748,7 +687,7 @@ function downloadCleanPdfReport(report: GeneratedReport) {
 
   <!-- 3. Estimated Profit Comparison -->
   <div class="section-title">3. Estimated Profit Comparison</div>
-  <div class="section-desc">Hypothetical figures for demonstrating the report. These are calculated using grounded KCC cost &amp; APMC market benchmarks.</div>
+  <div class="section-desc">Hypothetical figures using built-in assumed costs, yields, and prices. No live market, weather, or KCC data is connected.</div>
   <table>
     <thead>
       <tr>
@@ -841,8 +780,8 @@ function downloadCleanPdfReport(report: GeneratedReport) {
     ${report.actionPlan.map((step) => `<li>${step}</li>`).join('')}
   </ol>
 
-  <!-- 7. Final AI Recommendation -->
-  <div class="section-title">7. Final AI Recommendation</div>
+  <!-- 7. Prototype summary -->
+  <div class="section-title">7. Prototype Summary</div>
   <div class="highlight-box">
     <div><strong>Best crop:</strong> <span style="font-size: 9pt; color: #065f46; font-weight: 800;">${report.finalRecommendation.bestCrop}</span></div>
     <div style="margin-top: 3px;"><strong>Reason for selection:</strong> ${report.finalRecommendation.reason}</div>
@@ -851,8 +790,8 @@ function downloadCleanPdfReport(report: GeneratedReport) {
   </div>
 
   <div class="footer">
-    <div>AgriGenius Intelligence Platform &bull; Certified Crop Advisory Document</div>
-    <div>AUTHENTICATED AGRONOMY SEAL</div>
+    <div>AgriGenius prototype estimate &bull; Not an official or certified crop advisory</div>
+    <div>Verify locally before acting</div>
   </div>
 
   </body>
@@ -889,7 +828,7 @@ export function ReportPage() {
   const [copied, setCopied] = useState(false);
   const [showPreviousReports, setShowPreviousReports] = useState(false);
 
-  // Load previous reports from localStorage with fallback to grounded default sample reports
+  // Load only reports created in this browser; do not seed the history with sample farmers.
   const [previousReports, setPreviousReports] = useState<GeneratedReport[]>(() => {
     try {
       const saved = localStorage.getItem('agrigenius_previous_reports');
@@ -902,7 +841,7 @@ export function ReportPage() {
     } catch (e) {
       console.error('Error loading previous reports:', e);
     }
-    return DEFAULT_PREVIOUS_REPORTS;
+    return [];
   });
 
   const deleteReportFromHistory = (reportId: string) => {
@@ -1117,9 +1056,12 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-6 pb-28">
+        <div role="note" className="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200">
+          Prototype estimate only. It uses fixed illustrative crop yields, costs, and prices. It does not use live market, weather, or KCC data. Verify all figures and agronomic choices locally before acting.
+        </div>
         {isGenerating ? (
           /* =========================================================================
-              GENERATING REPORT LOADING SCREEN (AI & Mandi Calculation Experience)
+              GENERATING ILLUSTRATIVE ESTIMATE
              ========================================================================= */
           <motion.div
             key="generating-report-screen"
@@ -1153,7 +1095,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                   Generating Your Crop Advisory Report
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-neutral-400 max-w-md mx-auto">
-                  Synthesizing agronomy algorithms, soil profiles &amp; APMC Mandi price benchmarks for <span className="font-bold text-slate-900 dark:text-white">{form.fullName || 'Farmer'}</span> in <span className="font-bold text-slate-900 dark:text-white">{form.location || 'your region'}</span>.
+                  Calculating an illustrative scenario from the entered details for <span className="font-bold text-slate-900 dark:text-white">{form.fullName || 'Farmer'}</span> in <span className="font-bold text-slate-900 dark:text-white">{form.location || 'your region'}</span>.
                 </p>
               </div>
 
@@ -1276,7 +1218,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                 Answer 10 Questions to Find Your Most Profitable Crop
               </h1>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-neutral-400 max-w-xl mx-auto">
-                Grounds recommendations in local soil, water availability, historical yield, and live APMC Mandi economics.
+                Produces an illustrative scenario from entered details and fixed assumptions; it does not access live market, weather, or KCC data.
               </p>
             </div>
 
@@ -1398,7 +1340,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                         Where is your farm located? (Village, district and state)
                       </h2>
                       <p className="text-xs text-slate-500 dark:text-neutral-400">
-                        Used to pull micro-climate data, historical rainfall, and APMC Mandi price benchmarks.
+                        Location is used as a form detail only; no live weather or market data is connected.
                       </p>
                     </div>
 
@@ -2020,7 +1962,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                   Next Profitable Crop Recommendation Report
                 </h2>
                 <div className="text-xs text-slate-500 dark:text-neutral-400 font-medium">
-                  Personalized AI-powered agricultural advisory &bull; REF: {generatedReport.id} &bull; {generatedReport.date}
+                  Prototype crop estimate; verify locally before acting &bull; REF: {generatedReport.id} &bull; {generatedReport.date}
                 </div>
               </div>
 
@@ -2086,14 +2028,14 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                 </p>
               </div>
 
-              {/* 2. AI's Top 3 Crop Recommendations (NO images as requested) */}
+              {/* 2. Illustrative crop options */}
               <div className="space-y-3 pt-2">
                 <div>
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-wide">
-                    2. AI's Top 3 Crop Recommendations
+                    <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-wide">
+                      2. Illustrative Crop Options
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-neutral-400 mt-0.5">
-                    Grounded agronomic ranking determined using local suitability, season, water, costs and market data.
+                    A prototype ranking from fixed assumptions and entered details; it is not a locally validated recommendation.
                   </p>
                 </div>
 
@@ -2126,7 +2068,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                     3. Estimated Profit Comparison
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-neutral-400 mt-0.5">
-                    Comparative financial projections calculated using grounded KCC cost &amp; APMC market benchmarks.
+                    Illustrative financial projections using built-in assumed costs, yields, and prices; no live source data is connected.
                   </p>
                 </div>
 
@@ -2303,10 +2245,10 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                 </ol>
               </div>
 
-              {/* 7. Final AI Recommendation */}
+              {/* 7. Prototype summary */}
               <div className="space-y-3 pt-2">
                 <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-wide">
-                  7. Final AI Recommendation
+                  7. Prototype Summary
                 </h3>
 
                 <div className="bg-emerald-50/50 dark:bg-neutral-900 border border-emerald-200/80 dark:border-neutral-800 rounded-2xl p-5 space-y-3 text-xs">
@@ -2345,7 +2287,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
               <button
                 type="button"
                 onClick={() => {
-                  const query = `I have received my Next Profitable Crop Recommendation Report for ${generatedReport.farmer.landAcres} acres in ${generatedReport.farmer.location}. Soil: ${generatedReport.farmer.soilType}. Top recommended crop is ${generatedReport.finalRecommendation.bestCrop} with projected net return of ₹${generatedReport.estimatedTotalNetReturn.toLocaleString('en-IN')}. Please advise on high-yielding certified seeds, sowing dates, and local mandi precautions.`;
+                  const query = `I have an illustrative crop planning estimate for ${generatedReport.farmer.landAcres} acres in ${generatedReport.farmer.location}. Soil: ${generatedReport.farmer.soilType}. It lists ${generatedReport.finalRecommendation.bestCrop} with a hypothetical net return of ₹${generatedReport.estimatedTotalNetReturn.toLocaleString('en-IN')}. Please help me check relevant KCC guidance for seeds, sowing dates, and local risks; do not treat the estimate as verified.`;
                   navigate('/chat', { state: { initialQuery: query } });
                 }}
                 className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black dark:shadow-none text-xs font-bold uppercase tracking-wider flex items-center justify-center space-x-2 shadow-md shadow-emerald-600/25 transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"

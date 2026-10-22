@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, MessageSquare, BarChart3, FileText, Users } from 'lucide-react';
+import { Home, MessageSquare, BarChart3, FileText, Users, Activity } from 'lucide-react';
 
 const SMOOTH_EASE = [0.32, 0.72, 0, 1] as const;
 
@@ -15,6 +15,7 @@ export function GlobalBottomNav() {
     { label: 'Home', shortLabel: 'Home', path: '/', icon: Home },
     { label: 'AI Assistant', shortLabel: 'Assistant', path: '/chat', icon: MessageSquare },
     { label: 'Report', shortLabel: 'Report', path: '/report', icon: FileText },
+    { label: 'LLM QA', shortLabel: 'LLM QA', path: '/evaluation', icon: Activity },
     { label: 'Team', shortLabel: 'Team', path: '/team', icon: Users },
   ];
 

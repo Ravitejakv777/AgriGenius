@@ -5,6 +5,7 @@ import type { HealthResponse } from '../lib/types';
 
 export function StatusPanel() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const backendConnected = health?.status === 'ok';
 
   useEffect(() => {
     checkHealth().then(setHealth).catch(console.error);
@@ -16,14 +17,21 @@ export function StatusPanel() {
         <div className="flex justify-between items-center text-sm">
           <span className="text-slate-500 dark:text-neutral-400">Corpus Size</span>
           <span className="font-medium text-slate-700 dark:text-neutral-200">
-            {health ? health.collection_count.toLocaleString() : '---'} KCC records
+            {health?.collection_count?.toLocaleString() || 'Unavailable'} KCC records
           </span>
         </div>
         
         <div className="flex justify-between items-center text-sm">
           <span className="text-slate-500 dark:text-neutral-400">Retrieval Model</span>
           <span className="font-medium text-slate-700 dark:text-neutral-200 text-right max-w-[150px] truncate" title={health?.model}>
-            {health?.model || '---'}
+            {health?.model || 'Unavailable'}
+          </span>
+        </div>
+
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-slate-500 dark:text-neutral-400">Reranker</span>
+          <span className="font-medium text-slate-700 dark:text-neutral-200 text-right max-w-[150px] truncate" title={health?.reranker}>
+            {health?.reranker || 'Unavailable'}
           </span>
         </div>
         
@@ -32,16 +40,32 @@ export function StatusPanel() {
           <span className="font-medium text-slate-700 dark:text-neutral-200">ChromaDB</span>
         </div>
         
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-slate-500 dark:text-neutral-400">LLM Engine</span>
-          <span className="font-medium text-slate-700 dark:text-neutral-200">Gemini</span>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between items-center gap-2">
+            <span className="text-slate-500 dark:text-neutral-400">Gemini generator</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200 text-right max-w-[170px] truncate" title={health?.llm_models?.gemini || health?.llm_model}>
+              {health?.llm_models?.gemini || health?.llm_model || 'Unavailable'}
+            </span>
+          </div>
+          <div className="flex justify-between items-center gap-2">
+            <span className="text-slate-500 dark:text-neutral-400">Llama generator</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200 text-right max-w-[170px] truncate" title={health?.llm_models?.llama}>
+              {health?.llm_models?.llama || 'Unavailable'}
+            </span>
+          </div>
+          <div className="flex justify-between items-center gap-2">
+            <span className="text-slate-500 dark:text-neutral-400">RAGAS judge</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200 text-right max-w-[170px] truncate" title={health?.evaluation_judge}>
+              {health?.evaluation_judge || 'Unavailable'}
+            </span>
+          </div>
         </div>
       </div>
       
       <div className="mt-5 pt-4 border-t border-slate-100 dark:border-neutral-800">
         <div className="flex items-center text-xs text-primary-700 dark:text-primary-400 bg-primary-50 dark:bg-primary-900/30 px-3 py-2 rounded-lg">
           <ShieldCheck className="w-4 h-4 mr-2" />
-          <span>Responses grounded in KCC data</span>
+          <span>{backendConnected ? 'Live KCC backend connected' : 'Backend unavailable; no sample answers'}</span>
         </div>
       </div>
     </div>

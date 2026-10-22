@@ -17,6 +17,7 @@ import {
 import { SourceCard } from './SourceCard';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ThemeToggle } from './ThemeToggle';
+import { streamChatMessage } from '../lib/api';
 
 export function ChatShell() {
   const navigate = useNavigate();
@@ -68,8 +69,6 @@ export function ChatShell() {
     setIsLoading(true);
 
     try {
-      const { streamChatMessage } = await import('../lib/api');
-      
       await streamChatMessage(
         { query, language, top_k: 5 },
         (chunk) => {
@@ -82,10 +81,13 @@ export function ChatShell() {
           );
         },
         (sources) => {
+          const responseLanguage = /[\u0c00-\u0c7f]/.test(query)
+            ? 'te'
+            : (language === 'hi' || /[\u0900-\u097f]/.test(query) ? 'hi' : 'en');
           setMessages(prev => 
             prev.map(msg => 
               msg.id === assistantId 
-                ? { ...msg, responseDetails: { ...msg.responseDetails, sources, grounded: true, query, answer: msg.content, confidence: 'high', language: language === 'hi' ? 'hi' : 'en' } as any } 
+                ? { ...msg, responseDetails: { sources, grounded: sources.length > 0, query, answer: msg.content, confidence: 'unknown', language: responseLanguage } }
                 : msg
             )
           );
@@ -95,7 +97,7 @@ export function ChatShell() {
           setMessages(prev => 
             prev.map(msg => 
               msg.id === assistantId 
-                ? { ...msg, content: 'I encountered an issue. Please try asking again or rephrase your question.' } 
+                ? { ...msg, content: 'I could not reach the AgriGenius backend. Please try again when it is available.', responseDetails: undefined }
                 : msg
             )
           );
@@ -342,7 +344,11 @@ export function ChatShell() {
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {activeSources.length > 0 ? (
                 activeSources.map((source, idx) => (
-                  <SourceCard key={source.rank || idx} source={source} />
+                  <SourceCard
+                    key={source.rank || idx}
+                    source={source}
+                    query={activeMessageWithSources?.responseDetails?.query || ''}
+                  />
                 ))
               ) : (
                 <div className="text-xs text-slate-400 dark:text-neutral-500 text-center py-16 space-y-2">

@@ -48,7 +48,7 @@ const DEFAULT_TEAM: TeamMember[] = [
     phoneNumber: '+91 8668110993',
     photo: '/team/member2.jpeg',
     role: 'RAG Pipeline & Neural Retrieval Lead',
-    bio: 'Engineered the dual-engine RAG retriever grounded on 347,944 verified KCC transcripts.',
+    bio: 'Engineered the multilingual RAG retriever over the local KCC advisory index.',
   },
   {
     id: 'member-3',
@@ -377,10 +377,10 @@ export function TeamPage() {
 
                   <div className="py-2">
                     <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white mb-1">
-                      Grounded Bilingual AI Agronomy Platform for Indian Agriculture
+                      Multilingual AI Agronomy Prototype for Indian Agriculture
                     </h3>
                     <p className="text-xs text-slate-600 dark:text-neutral-300 leading-relaxed">
-                      AgriGenius connects Indian farmers directly with <strong>347,944+ verified Ministry of Agriculture (KCC)</strong> transcripts using a dual-engine RAG retriever and conversational neural reasoning in both Hindi and English.
+                      AgriGenius retrieves from <strong>493,213 local KCC advisory records</strong> using multilingual Indic embeddings, a cross-encoder reranker, and evidence-backed answer generation in Hindi, Telugu, and English.
                     </p>
                   </div>
                 </motion.div>

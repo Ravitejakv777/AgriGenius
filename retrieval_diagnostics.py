@@ -3,11 +3,9 @@ retrieval_diagnostics.py
 
 Follow-up checks after the first RAG smoke test surfaced three suspected issues:
 
-1. CROSS-LINGUAL RETRIEVAL GAP: an English query for groundnut seed rate
-   returned zero groundnut passages, despite groundnut seed-rate content
-   almost certainly existing in the (Hindi) corpus. Tests matched
-   English/Hindi query pairs across several crops to see if English queries
-   systematically underperform Hindi queries at finding the right crop.
+1. CROSS-LINGUAL RETRIEVAL GAP: Tests matched English, Hindi, and Telugu
+   questions across crops to check whether the Indic model retrieves the
+   expected crop from the current corpus.
 
 2. NON-ANSWER ROWS: some retrieved "KccAns" text was actually a restated
    question (e.g. "Which pesticide should be used to control stem eating
@@ -32,10 +30,12 @@ from sentence_transformers import SentenceTransformer
 CSV_PATH = "kcc_index_ready_final.csv"
 CHROMA_DB_PATH = "./chroma_kcc_db"
 COLLECTION_NAME = "kcc_agri_advisor"
-EMBED_MODEL_NAME = "l3cube-pune/hindi-sentence-bert-nli"
+EMBED_MODEL_NAME = "l3cube-pune/indic-sentence-bert-nli"
 
-# (english, hindi, expected_crop_substring)
+# (query in any language, paired query in another language, expected crop)
 PAIRED_QUERIES = [
+    ("How should I control leaf folder in paddy?", "వరి పంటలో ఆకు ముడత తెగులు నివారణ ఎలా చేయాలి?", "Paddy"),
+    ("What is the groundnut seed rate?", "వేరుశెనగ పంటలో విత్తన మోతాదు ఎంత?", "Groundnut"),
     ("What is the seed rate for groundnut crop?", "मूंगफली की फसल में बीज दर क्या है?", "Groundnut"),
     ("How to control pests in banana plants?", "केले के पौधों में कीट नियंत्रण कैसे करें?", "Banana"),
     ("What fertilizer should I use for sugarcane?", "गन्ने की फसल में कौन सा उर्वरक इस्तेमाल करें?", "Sugarcane"),
@@ -63,27 +63,27 @@ def retrieve(query, model, collection, k=5):
 
 # --- 1. Cross-lingual gap ---------------------------------------------------
 def check_cross_lingual_gap(model, collection):
-    print("Testing matched English/Hindi query pairs ...\n")
-    en_hits, hi_hits = 0, 0
-    for en_q, hi_q, expected_crop in PAIRED_QUERIES:
-        en_results = retrieve(en_q, model, collection, k=5)
-        hi_results = retrieve(hi_q, model, collection, k=5)
+    print("Testing matched multilingual query pairs ...\n")
+    query_a_hits, query_b_hits = 0, 0
+    for query_a, query_b, expected_crop in PAIRED_QUERIES:
+        results_a = retrieve(query_a, model, collection, k=5)
+        results_b = retrieve(query_b, model, collection, k=5)
 
-        en_crop_hit = any(expected_crop.lower() in r["crop"].lower() for r in en_results)
-        hi_crop_hit = any(expected_crop.lower() in r["crop"].lower() for r in hi_results)
-        en_hits += en_crop_hit
-        hi_hits += hi_crop_hit
+        hit_a = any(expected_crop.lower() in r["crop"].lower() for r in results_a)
+        hit_b = any(expected_crop.lower() in r["crop"].lower() for r in results_b)
+        query_a_hits += hit_a
+        query_b_hits += hit_b
 
         print(f"Expected crop: {expected_crop}")
-        print(f"  EN '{en_q}' -> top crops: {[r['crop'] for r in en_results]} "
-              f"{'[HIT]' if en_crop_hit else '[MISS]'}")
-        print(f"  HI '{hi_q}' -> top crops: {[r['crop'] for r in hi_results]} "
-              f"{'[HIT]' if hi_crop_hit else '[MISS]'}")
+        print(f"  Query A '{query_a}' -> top crops: {[r['crop'] for r in results_a]} "
+              f"{'[HIT]' if hit_a else '[MISS]'}")
+        print(f"  Query B '{query_b}' -> top crops: {[r['crop'] for r in results_b]} "
+              f"{'[HIT]' if hit_b else '[MISS]'}")
         print()
 
     n = len(PAIRED_QUERIES)
-    print(f"English query crop-hit rate: {en_hits}/{n} ({en_hits / n * 100:.0f}%)")
-    print(f"Hindi query crop-hit rate:   {hi_hits}/{n} ({hi_hits / n * 100:.0f}%)")
+    print(f"Query A crop-hit rate: {query_a_hits}/{n} ({query_a_hits / n * 100:.0f}%)")
+    print(f"Query B crop-hit rate: {query_b_hits}/{n} ({query_b_hits / n * 100:.0f}%)")
 
 
 # --- 2. Non-answer detection -------------------------------------------------
