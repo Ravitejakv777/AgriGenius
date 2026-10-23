@@ -31,7 +31,12 @@ CHROMA_DB_PATH = "./chroma_kcc_db"
 COLLECTION_NAME = "kcc_agri_advisor"
 EMBED_MODEL_NAME = "l3cube-pune/indic-sentence-bert-nli"
 CROSS_ENCODER_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
-LLM_MODEL_NAME = os.environ.get("AGRI_GEMINI_MODEL", "gemini-3-flash-preview")
+_configured_gemini_model = os.environ.get("AGRI_GEMINI_MODEL", "gemini-3-flash-preview").strip()
+# Accept the short alias that may have been configured in a local or hosted
+# environment, while sending the actual Gemini API model ID.
+LLM_MODEL_NAME = {
+    "gemini-3-flash": "gemini-3-flash-preview",
+}.get(_configured_gemini_model, _configured_gemini_model)
 GROQ_MODEL_NAME = os.environ.get("AGRI_GROQ_MODEL", "openai/gpt-oss-20b")
 EVALUATION_JUDGE_MODEL = os.environ.get("AGRI_EVAL_JUDGE_MODEL", "gemini-3.8-flash")
 DEFAULT_TOP_K = 5
@@ -540,6 +545,7 @@ Answer:"""
                     client=judge_async_client,
                     adapter="instructor",
                     temperature=0.0,
+                    max_tokens=8192,
                 )
                 judge_embeddings = GoogleEmbeddings(client=judge_sync_client, model="gemini-embedding-001")
                 faithfulness_metric = Faithfulness(llm=judge_llm)
