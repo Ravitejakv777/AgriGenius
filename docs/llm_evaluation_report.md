@@ -10,11 +10,11 @@ The RAG pipeline uses `l3cube-pune/indic-sentence-bert-nli` for normalized 768-d
 
 | Role | Configured model | Function |
 | --- | --- | --- |
-| Generator A | Gemini 3.6 Flash (`AGRI_GEMINI_MODEL`) | Produces an answer from the selected KCC passages |
+| Generator A | Gemini 3 Flash Preview (`gemini-3-flash-preview`, `AGRI_GEMINI_MODEL`) | Produces an answer from the selected KCC passages |
 | Generator B | Groq GPT-OSS 20B (`openai/gpt-oss-20b`, `AGRI_GROQ_MODEL`) | Produces a second answer from the exact same passages |
 | Evaluation judge | Gemini 3.8 Flash by default (`AGRI_EVAL_JUDGE_MODEL`) | Scores both outputs with RAGAS using one shared judge configuration |
 
-The Google model registry currently identifies Gemini 3.5 Flash as deprecated and says requests are routed to Gemini 3.6 Flash, so the configured direct model ID was moved to `gemini-3.6-flash`. [Google Gemini model reference](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash.md)
+Generator A now defaults to `gemini-3-flash-preview` based on the project's available quota: the supplied AI Studio snapshot shows up to 20 requests/day, compared with 2 remaining for Gemini 3.6 Flash. Gemini 3.8 Flash remains the RAGAS judge. The model is a preview release, so its availability and limits may change. [Gemini 3 Flash Preview model reference](https://ai.google.dev/gemini-api/docs/models/gemini-3-flash-preview)
 
 The `/api/llm/compare` endpoint retrieves context once, then calls each generator separately with identical question, prompt rules, and retrieved passages. Each model result reports provider status, answer text, end-to-end generation latency, and answer character count. Timing excludes the RAGAS judge calls.
 
@@ -57,9 +57,9 @@ For the current UI, run `/evaluation` for each test question with `GEMINI_API_KE
 
 | Language / check | Generator comparison | Faithfulness / relevance | Status |
 | --- | --- | --- | --- |
-| Hindi | Gemini 3.6 Flash vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
-| Telugu | Gemini 3.6 Flash vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
-| English | Gemini 3.6 Flash vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
+| Hindi | Gemini 3 Flash Preview vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
+| Telugu | Gemini 3 Flash Preview vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
+| English | Gemini 3 Flash Preview vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
 | Unsupported / insufficient evidence | Run each configured generator and inspect abstention | Context metrics are skipped when no KCC sources are retrieved | Pending live provider access |
 | LIME explanation review | Inspect positive/negative query token weights against ranked passage | Qualitative review required per script | Pending live model access |
 

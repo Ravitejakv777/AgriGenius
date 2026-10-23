@@ -21,7 +21,7 @@ AgriGenius is a local multilingual RAG development prototype. The checked-in bac
 - Embedding model: `l3cube-pune/indic-sentence-bert-nli`.
 - Vector store: ChromaDB, collection `kcc_agri_advisor`, cosine distance.
 - Reranker: `BAAI/bge-reranker-v2-m3`.
-- Generation: Gemini (`gemini-3.6-flash`) and Groq (`openai/gpt-oss-20b`); both can be run against the same evidence through the LLM QA page.
+- Generation: Gemini (`gemini-3-flash-preview` by default) and Groq (`openai/gpt-oss-20b`); both can be run against the same evidence through the LLM QA page.
 - Evaluation judge: RAGAS with Gemini (`gemini-3.8-flash` by default), using the same judge for both answers.
 - Explainability: on-demand LIME perturbation explanation for the BGE cross-encoder relevance score of a selected source.
 - Service: FastAPI with `/api/health`, `/api/chat`, `/api/chat/stream`, `/api/llm/compare`, and `/api/explain`.

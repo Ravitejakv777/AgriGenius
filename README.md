@@ -8,7 +8,7 @@ AgriGenius is a local RAG prototype for agricultural questions in Hindi, Telugu,
 - ChromaDB collection: `chroma_kcc_db/kcc_agri_advisor` — **493,213 vectors**.
 - Embeddings: `l3cube-pune/indic-sentence-bert-nli`, 768 dimensions, normalized, cosine distance.
 - Reranker: `BAAI/bge-reranker-v2-m3` (configured; requires model access on first load).
-- Answer providers: Gemini 3.6 Flash and Groq `openai/gpt-oss-20b`.
+- Answer providers: Gemini 3 Flash Preview and Groq `openai/gpt-oss-20b`.
 - UI/API: React + Vite frontend and FastAPI backend, with SSE chat streaming.
 
 The local Chroma collection records the embedding model, dimensions, normalization, metric, source row count, and SHA-256 fingerprint of the indexed corpus. The Kaggle build notebook `nlp-run1.ipynb` records a 493,213-row build using the same Indic model and normalized 768-dimensional vectors. The separate engineering summary's 508,072 cleaned-row figure does not match the current local corpus and should not be used as the active count.

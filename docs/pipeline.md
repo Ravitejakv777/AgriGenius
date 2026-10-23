@@ -26,7 +26,7 @@ Hindi / Telugu / English farmer question
   -> remove likely question-only rows and near duplicates
   -> BAAI/bge-reranker-v2-m3 cross-encoder reranking
   -> top-k KCC passages and metadata
-  -> Gemini 3.6 Flash or Groq openai/gpt-oss-20b generation
+  -> Gemini 3 Flash Preview or Groq openai/gpt-oss-20b generation
   -> SSE answer chunks with source metadata
 ```
 
