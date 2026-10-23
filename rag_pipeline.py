@@ -21,7 +21,6 @@ load_dotenv("keys.env")
 
 import chromadb
 import numpy as np
-from google import genai
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.cross_encoder import CrossEncoder
 
@@ -32,10 +31,43 @@ EMBED_MODEL_NAME = "l3cube-pune/indic-sentence-bert-nli"
 CROSS_ENCODER_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
 QWEN_MODEL_NAME = os.environ.get("AGRI_QWEN_MODEL", "qwen/qwen3.8-27b").strip()
 GROQ_MODEL_NAME = os.environ.get("AGRI_GROQ_MODEL", "openai/gpt-oss-20b").strip()
-EVALUATION_JUDGE_MODEL = os.environ.get("AGRI_EVAL_JUDGE_MODEL", "gemini-3.8-flash")
 DEFAULT_TOP_K = 5
 DEFAULT_FETCH_K = 20
 MMR_LAMBDA = 0.72
+EVALUATION_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "in", "is", "it",
+    "of", "on", "or", "that", "the", "this", "to", "was", "what", "when", "where", "which", "with",
+    "क्या", "कैसे", "कब", "के", "की", "को", "का", "में", "से", "और", "है", "हैं", "कर", "पर",
+    "ఏమి", "ఎలా", "ఎప్పుడు", "కు", "కి", "లో", "తో", "మరియు", "అని", "ఉంది", "ఉన్నాయి",
+}
+EVALUATION_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?।॥])\s+|\n+")
+
+
+def local_overlap_scores(query: str, answer: str, contexts: list[str]) -> dict[str, float]:
+    """Return deterministic Unicode token-coverage heuristics, not semantic judgments."""
+
+    def tokens(text: str) -> set[str]:
+        text = re.sub(r"\[\s*source\s+\d+\s*\]", " ", text, flags=re.IGNORECASE)
+        return {
+            token.casefold()
+            for token in re.findall(r"[^\W_]+", text, flags=re.UNICODE)
+            if token.casefold() not in EVALUATION_STOPWORDS
+        }
+
+    answer_sentences = [sentence.strip() for sentence in EVALUATION_SENTENCE_SPLIT_RE.split(answer) if sentence.strip()]
+    context_tokens = set().union(*(tokens(context) for context in contexts)) if contexts else set()
+    sentence_coverages = []
+    for sentence in answer_sentences:
+        answer_tokens = tokens(sentence)
+        if answer_tokens:
+            sentence_coverages.append(len(answer_tokens & context_tokens) / len(answer_tokens))
+
+    query_tokens = tokens(query)
+    answer_tokens = tokens(answer)
+    return {
+        "evidence_token_coverage": sum(sentence_coverages) / len(sentence_coverages) if sentence_coverages else 0.0,
+        "question_token_coverage": len(query_tokens & answer_tokens) / len(query_tokens) if query_tokens else 0.0,
+    }
 
 
 def _groq_client(api_key: str):
@@ -460,7 +492,7 @@ Answer:"""
         }
 
     async def compare_models(self, query: str, top_k: int = DEFAULT_TOP_K) -> dict[str, Any]:
-        """Run both configured answer models on identical retrieved evidence and score with RAGAS."""
+        """Run both configured answer models on identical evidence and score locally."""
         import asyncio
         import time
 
@@ -512,79 +544,15 @@ Answer:"""
                 })
 
         evaluation_status = "skipped_no_context" if not sources else "skipped_no_successful_generation"
-        judge_model = EVALUATION_JUDGE_MODEL
-        if sources and any(item["status"] == "ok" for item in results):
-            judge_sync_client = None
-            judge_async_client = None
-            try:
-                from ragas.embeddings import GoogleEmbeddings
-                from ragas.llms import llm_factory
-                from ragas.metrics.collections import AnswerRelevancy, Faithfulness
-                from openai import AsyncOpenAI
-
-                api_key = os.environ.get("GEMINI_API_KEY")
-                if not api_key:
-                    raise RuntimeError("GEMINI_API_KEY is required for the RAGAS judge.")
-                # RAGAS collection metrics call the judge asynchronously. The
-                # GenAI Instructor adapter only accepts a synchronous Google
-                # client, so use Google's OpenAI-compatible endpoint with an
-                # AsyncOpenAI client for the judge instead.
-                judge_sync_client = genai.Client(api_key=api_key)
-                judge_async_client = AsyncOpenAI(
-                    api_key=api_key,
-                    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-                    timeout=45.0,
-                )
-                judge_llm = llm_factory(
-                    judge_model,
-                    provider="openai",
-                    client=judge_async_client,
-                    adapter="instructor",
-                    temperature=0.0,
-                    max_tokens=8192,
-                )
-                judge_embeddings = GoogleEmbeddings(client=judge_sync_client, model="gemini-embedding-001")
-                faithfulness_metric = Faithfulness(llm=judge_llm)
-                relevancy_metric = AnswerRelevancy(llm=judge_llm, embeddings=judge_embeddings)
-                contexts = [source.text for source in sources]
-
-                async def score_successful_models() -> None:
-                    for item in results:
-                        if item["status"] != "ok":
-                            continue
-                        faithfulness_result = await faithfulness_metric.ascore(
-                            user_input=query, response=item["answer"], retrieved_contexts=contexts
-                        )
-                        answer_relevancy_result = await relevancy_metric.ascore(
-                            user_input=query, response=item["answer"]
-                        )
-                        faithfulness_raw = faithfulness_result.value
-                        answer_relevancy_raw = answer_relevancy_result.value
-                        faithfulness = float(faithfulness_raw) if faithfulness_raw is not None and np.isfinite(faithfulness_raw) else None
-                        answer_relevancy = float(answer_relevancy_raw) if answer_relevancy_raw is not None and np.isfinite(answer_relevancy_raw) else None
-                        item["metrics"] = {
-                            "faithfulness": faithfulness,
-                            "answer_relevancy": answer_relevancy,
-                            "unsupported_claim_rate_proxy": 1.0 - faithfulness if faithfulness is not None else None,
-                        }
-
-                try:
-                    await asyncio.wait_for(score_successful_models(), timeout=75.0)
-                except asyncio.TimeoutError as error:
-                    raise TimeoutError("RAGAS scoring exceeded the 75-second limit.") from error
-                evaluation_status = "ok"
-            except Exception as error:
-                evaluation_status = "error"
-                for item in results:
-                    if item["status"] == "ok":
-                        item["evaluation_error"] = str(error)
-            finally:
-                try:
-                    if judge_async_client is not None:
-                        await judge_async_client.close()
-                finally:
-                    if judge_sync_client is not None:
-                        judge_sync_client.close()
+        contexts = [source.text for source in sources]
+        for item in results:
+            if item["status"] != "ok":
+                continue
+            metrics = local_overlap_scores(query, item["answer"], contexts)
+            metrics["unmatched_token_share_proxy"] = 1.0 - metrics["evidence_token_coverage"]
+            item["metrics"] = metrics
+        if any(item["status"] == "ok" for item in results):
+            evaluation_status = "ok"
 
         return {
             "query": query,
@@ -592,10 +560,9 @@ Answer:"""
             "sources": source_payload,
             "source_count": len(sources),
             "evaluation": {
-                "framework": "RAGAS",
-                "judge_model": judge_model,
+                "method": "deterministic_unicode_token_overlap_v1",
                 "status": evaluation_status,
-                "hallucination_measure": "Unsupported-claim-rate proxy = 1 - RAGAS faithfulness; not an independent hallucination classifier.",
+                "note": "Scores are exact-token coverage heuristics, not semantic faithfulness, answer relevance, or hallucination detection.",
             },
         }
 

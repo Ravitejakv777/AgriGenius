@@ -1,4 +1,4 @@
-"""Compare both configured generators with RAGAS on a reviewed query JSON file."""
+"""Compare both configured generators with local lexical metrics on reviewed queries."""
 
 import argparse
 import asyncio
@@ -28,16 +28,16 @@ def summarize(results: list[dict]) -> dict:
                 sum(row["generation_latency_ms"] for row in completed) / len(completed)
                 if completed else None
             ),
-            "mean_faithfulness": (
-                sum(row["metrics"]["faithfulness"] for row in scored) / len(scored)
+            "mean_evidence_token_coverage": (
+                sum(row["metrics"]["evidence_token_coverage"] for row in scored) / len(scored)
                 if scored else None
             ),
-            "mean_answer_relevancy": (
-                sum(row["metrics"]["answer_relevancy"] for row in scored) / len(scored)
+            "mean_question_token_coverage": (
+                sum(row["metrics"]["question_token_coverage"] for row in scored) / len(scored)
                 if scored else None
             ),
-            "mean_unsupported_claim_rate_proxy": (
-                sum(row["metrics"]["unsupported_claim_rate_proxy"] for row in scored) / len(scored)
+            "mean_unmatched_token_share_proxy": (
+                sum(row["metrics"]["unmatched_token_share_proxy"] for row in scored) / len(scored)
                 if scored else None
             ),
         }
@@ -76,18 +76,19 @@ async def main() -> int:
             f"{model['provider']}={model['status']}"
             for model in comparison["models"]
         )
-        print(f"[{index}/{len(cases)}] {case.get('language', 'Unspecified')}: {statuses}; RAGAS={comparison['evaluation']['status']}")
+        print(f"[{index}/{len(cases)}] {case.get('language', 'Unspecified')}: {statuses}; local_scores={comparison['evaluation']['status']}")
 
     output = {
         "query_file": str(Path(args.query_file)),
         "model_ids": {"qwen": rag.qwen_model_name, "groq": rag.groq_model_name},
-        "evaluation_judge": comparison["evaluation"]["judge_model"] if results else None,
+        "evaluation_method": "deterministic_unicode_token_overlap_v1",
         "results": results,
         "summary_by_language_and_provider": summarize(results),
         "limitations": [
             "This set is exploratory unless its questions and reference answers have been reviewed by agricultural experts.",
-            "Faithfulness and answer relevance use an LLM judge and need human validation, especially for Hindi and Telugu.",
-            "Unsupported-claim rate is 1 - faithfulness, a proxy rather than an independent hallucination classifier.",
+            "Evidence and question scores are exact-token overlap heuristics; they do not detect semantic support, answer correctness, or hallucinations.",
+            "Token overlap is sensitive to wording, inflection, spelling, and language; human review is needed, especially for Hindi and Telugu.",
+            "Unmatched-token share is 1 - evidence token coverage, not an unsupported-claim or hallucination classifier.",
         ],
     }
     with open(args.output, "w", encoding="utf-8") as file:

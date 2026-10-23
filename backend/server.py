@@ -55,7 +55,7 @@ def health_check():
         "reranker": rag.cross_encoder_name,
         "llm_model": rag.qwen_model_name,
         "llm_models": {"qwen": rag.qwen_model_name, "groq": rag.groq_model_name},
-        "evaluation_judge": os.environ.get("AGRI_EVAL_JUDGE_MODEL", "gemini-3.8-flash"),
+        "evaluation_method": "deterministic_unicode_token_overlap_v1",
     }
 
 @app.post("/api/chat")

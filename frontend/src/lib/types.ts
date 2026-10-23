@@ -38,11 +38,10 @@ export type ModelComparisonResult = {
   generation_latency_ms: number;
   answer_characters?: number;
   error?: string;
-  evaluation_error?: string;
   metrics?: {
-    faithfulness: number | null;
-    answer_relevancy: number | null;
-    unsupported_claim_rate_proxy: number | null;
+    evidence_token_coverage: number;
+    question_token_coverage: number;
+    unmatched_token_share_proxy: number;
   };
 };
 
@@ -52,10 +51,9 @@ export type ModelComparison = {
   sources: SourcePassage[];
   source_count: number;
   evaluation: {
-    framework: string;
-    judge_model: string;
+    method: string;
     status: string;
-    hallucination_measure: string;
+    note: string;
   };
 };
 
@@ -78,7 +76,7 @@ export type HealthResponse = {
   reranker?: string;
   llm_model?: string;
   llm_models?: { qwen?: string; groq?: string };
-  evaluation_judge?: string;
+  evaluation_method?: string;
 };
 
 export type Message = {

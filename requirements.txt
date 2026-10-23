@@ -1,7 +1,6 @@
 pandas
 chromadb
 sentence-transformers
-google-genai
 python-dotenv
 scikit-learn
 numpy
@@ -10,8 +9,4 @@ fastapi
 uvicorn
 sse-starlette
 lime>=0.2.0.1
-ragas @ git+https://github.com/vibrantlabsai/ragas.git@735726d5c29e072b5e4e877759d254f78e0f7c73
-langchain-google-vertexai==3.2.3
-instructor>=1.17,<2
-openai>=1,<3
 groq>=1,<2
