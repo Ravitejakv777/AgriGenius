@@ -19,13 +19,19 @@ import {
   Check,
   Loader2,
   Edit3,
-  Save
+  Save,
+  Plus,
+  Eye,
+  Download,
+  Sprout
 } from 'lucide-react';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { CascadingLocationPicker } from '../components/CascadingLocationPicker';
 import { parseLocationString, formatLocationString } from '../lib/locationData';
 import { COUNTRY_CODES, formatPhoneWithCountryCode, parsePhoneWithCountryCode } from '../lib/countryCodes';
+import { fetchReportsApi, deleteReportApi } from '../lib/api';
+import { downloadCleanPdfReport } from './ReportPage';
 
 const DELETION_REASONS = [
   "I am no longer actively farming or managing crops",
@@ -81,6 +87,88 @@ export function ProfilePage() {
   const [feedbackText, setFeedbackText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // User Saved Advisory Reports (stored persistently for every user in Neon PostgreSQL)
+  const [userReports, setUserReports] = useState<any[]>(() => {
+    if (user?.email) {
+      try {
+        const cached = localStorage.getItem(`agrigenius_reports_${user.email.toLowerCase()}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    if (isAuthenticated && user?.email) {
+      fetchReportsApi(user.email, user.id)
+        .then((data) => {
+          if (Array.isArray(data)) {
+            const mapped = data.map((r: any) => {
+              if (r.report_data && (r.report_data.id || r.report_code)) {
+                return {
+                  ...r.report_data,
+                  id: r.report_data.id || r.report_code || `REP-${r.id}`,
+                  dbId: r.id
+                };
+              }
+              return {
+                id: r.report_code || `REP-${r.id}`,
+                dbId: r.id,
+                date: r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Recent',
+                farmer: {
+                  name: r.farmer_name || user.name || 'Farmer',
+                  location: r.location || user.place || 'India',
+                  landAcres: r.land_acres || '1',
+                  soilType: r.soil_type || 'Loamy',
+                  waterAvailability: r.water_availability || 'Medium',
+                  previousCrop: r.previous_crop || 'None',
+                  previousYield: r.previous_yield || '',
+                  nextSeason: r.next_season || 'Kharif',
+                  investmentBudget: r.budget || 'Medium',
+                  mainObjective: r.main_objective || 'Maximum Profit',
+                },
+                topSelectedCrop: {
+                  name: r.top_crop || 'Recommended Crop',
+                },
+                finalRecommendation: {
+                  bestCrop: r.top_crop || 'Recommended Crop',
+                },
+                estimatedTotalNetReturn: 50000,
+                language: r.language || 'en'
+              };
+            });
+            setUserReports(mapped);
+            try {
+              localStorage.setItem(`agrigenius_reports_${user.email.toLowerCase()}`, JSON.stringify(mapped));
+            } catch {}
+          }
+        })
+        .catch((err) => console.warn('Could not fetch user reports in profile:', err));
+    } else if (!isAuthenticated) {
+      setUserReports([]);
+    }
+  }, [isAuthenticated, user?.email, user?.id]);
+
+  const handleDeleteReport = (reportId: string, dbId?: number) => {
+    if (!window.confirm(`Delete report ${reportId} from your profile?`)) return;
+    const targetDbId = dbId || parseInt(reportId.replace(/\D/g, ''), 10);
+    if (user?.email && targetDbId && !isNaN(targetDbId)) {
+      deleteReportApi(targetDbId, user.email, user.id).catch((e) => console.warn(e));
+    }
+    setUserReports((prev) => {
+      const updated = prev.filter((r) => r.id !== reportId);
+      if (user?.email) {
+        try {
+          localStorage.setItem(`agrigenius_reports_${user.email.toLowerCase()}`, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
+  };
 
   useEffect(() => {
     if (!isAuthenticated || !user) {
@@ -506,7 +594,7 @@ export function ProfilePage() {
                       required
                       value={editName}
                       onChange={(e) => setEditName(e.target.value)}
-                      placeholder="e.g. Raviteja"
+                      placeholder={user.name || "Full name"}
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
                     />
                   </div>
@@ -554,7 +642,7 @@ export function ProfilePage() {
                         type="tel"
                         value={editPhoneDigits}
                         onChange={(e) => setEditPhoneDigits(e.target.value.replace(/[^0-9]/g, ''))}
-                        placeholder="9876543210"
+                        placeholder={editPhoneDigits || "10-digit mobile number"}
                         className="w-full px-3 py-2.5 bg-transparent text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none"
                       />
                     </div>
@@ -678,6 +766,127 @@ export function ProfilePage() {
               <div className="text-[11px] text-rose-600/70 dark:text-rose-400/70 mt-0.5">End active session cleanly</div>
             </button>
           </div>
+        </motion.div>
+
+        {/* ===================================================================== */}
+        {/* SAVED ADVISORY REPORTS (SYNCED FOR EVERY USER IN NEON POSTGRESQL)     */}
+        {/* ===================================================================== */}
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: 0.12 }}
+          className="bg-white dark:bg-neutral-950 border border-slate-200 dark:border-neutral-900 rounded-3xl p-6 shadow-sm space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Saved Advisory Reports ({userReports.length})
+                </h2>
+                <p className="text-[11px] text-slate-500 dark:text-neutral-400">
+                  Crop advisory reports saved to your profile in Neon PostgreSQL
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => navigate('/report')}
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-neutral-900 dark:hover:bg-neutral-800 dark:text-white border border-emerald-200 dark:border-neutral-800 transition-all cursor-pointer shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>New Report</span>
+            </button>
+          </div>
+
+          {userReports.length === 0 ? (
+            <div className="text-center py-6 border border-dashed border-slate-200 dark:border-neutral-800 rounded-2xl p-4">
+              <Sprout className="w-8 h-8 text-slate-300 dark:text-neutral-600 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-slate-600 dark:text-neutral-400">
+                No advisory reports saved yet
+              </p>
+              <p className="text-[11px] text-slate-400 dark:text-neutral-500 mt-0.5">
+                Complete the 10-question wizard to generate and save your personalized crop recommendation.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/report')}
+                className="mt-3 inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                <span>Generate Advisory Report</span>
+                <span>&rarr;</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {userReports.slice(0, 5).map((r) => {
+                const cropName = r.topSelectedCrop?.name || r.finalRecommendation?.bestCrop || r.top_crop || 'Recommended Crop';
+                const dateStr = r.date || (r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Recent');
+                const netReturn = r.estimatedTotalNetReturn || 50000;
+                return (
+                  <div
+                    key={r.id}
+                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-neutral-900/60 border border-slate-200/80 dark:border-neutral-800/80 flex items-center justify-between gap-3 text-xs hover:border-emerald-500/50 transition-all"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 px-2 py-0.5 rounded-md">
+                          {r.id}
+                        </span>
+                        <span className="text-[11px] text-slate-400 dark:text-neutral-500">{dateStr}</span>
+                      </div>
+                      <div className="font-bold text-slate-900 dark:text-white mt-1 truncate">
+                        {cropName} &bull; <span className="text-emerald-600 dark:text-emerald-400">₹{netReturn.toLocaleString('en-IN')} net return</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-neutral-400 mt-0.5 truncate">
+                        {r.farmer?.location || r.location || 'India'} &bull; {r.farmer?.landAcres || r.land_acres || '1'} Acres &bull; {r.farmer?.nextSeason || r.next_season || 'Season'}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => navigate('/report', { state: { selectedReport: r } })}
+                        className="p-2 rounded-xl bg-white dark:bg-neutral-800 hover:bg-emerald-50 dark:hover:bg-neutral-700 text-slate-700 dark:text-neutral-200 border border-slate-200 dark:border-neutral-700 text-xs font-semibold transition-all cursor-pointer"
+                        title="View Report in Advisory Engine"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadCleanPdfReport(r)}
+                        className="p-2 rounded-xl bg-white dark:bg-neutral-800 hover:bg-emerald-50 dark:hover:bg-neutral-700 text-slate-700 dark:text-neutral-200 border border-slate-200 dark:border-neutral-700 text-xs font-semibold transition-all cursor-pointer"
+                        title="Download Clean PDF"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteReport(r.id, r.dbId)}
+                        className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-neutral-800 transition-all cursor-pointer"
+                        title="Delete Report"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {userReports.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/report', { state: { openPreviousReports: true } })}
+                  className="w-full text-center text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline py-1.5 cursor-pointer"
+                >
+                  View all {userReports.length} saved reports &rarr;
+                </button>
+              )}
+            </div>
+          )}
         </motion.div>
 
         {/* ===================================================================== */}
@@ -809,7 +1018,7 @@ export function ProfilePage() {
                   rows={2}
                   value={feedbackText}
                   onChange={(e) => setFeedbackText(e.target.value)}
-                  placeholder="Share any feedback, features missing, or issues you experienced..."
+                  placeholder="Reason for account deletion..."
                   className="w-full p-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-rose-500 transition-all resize-none"
                 />
               </div>

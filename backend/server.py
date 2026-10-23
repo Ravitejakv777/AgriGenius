@@ -347,12 +347,14 @@ def api_send_otp(req: SendOtpRequest, db: Session = Depends(get_db)):
 
     code = generate_otp()
     store_otp(clean_email, code)
-    send_otp_email(clean_email, code)
+    delivered = send_otp_email(clean_email, code)
 
     return {
         "status": "sent",
+        "delivered": delivered,
         "code": code,
-        "message": f"Verification code sent to {clean_email}"
+        "email": clean_email,
+        "message": f"Verification code sent to {clean_email}" if delivered else f"Verification code generated for {clean_email} (check spam or use instant verify)"
     }
 
 @app.post("/api/auth/verify-otp")
@@ -464,13 +466,12 @@ def auth_register(req: AuthRegisterRequest, db: Session = Depends(get_db)):
             detail="User already exists. Try login."
         )
 
-    # 2. Reject duplicate username with clear error
-    existing_username = db.query(DBUser).filter(DBUser.username == clean_username).first()
-    if existing_username:
-        raise HTTPException(
-            status_code=400,
-            detail=f"An account with username '{clean_username}' already exists. Please choose a different name or sign in."
-        )
+    # 2. Disambiguate duplicate username if needed
+    base_username = clean_username
+    counter = 1
+    while db.query(DBUser).filter(DBUser.username == clean_username).first():
+        clean_username = f"{base_username}_{counter}"
+        counter += 1
 
     pwd_hash = hashlib.sha256(req.password.encode('utf-8')).hexdigest()
 

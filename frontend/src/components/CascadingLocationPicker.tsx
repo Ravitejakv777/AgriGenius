@@ -278,7 +278,7 @@ export function CascadingLocationPicker({
             disabled={disabled}
             value={customVillageInput}
             onChange={(e) => handleCustomVillageChange(e.target.value)}
-            placeholder={`Enter your village or gram panchayat in ${currentDistrict}`}
+            placeholder={currentDistrict ? `Village name in ${currentDistrict}` : "Village name"}
             className="w-full px-3 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
           />
         </div>

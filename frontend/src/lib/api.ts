@@ -7,7 +7,7 @@ function isHindi(query: string): boolean {
 }
 
 function answerLanguage(query: string, requested: ChatRequest['language']): ChatResponse['language'] {
-  if (/[\u0c00-\u0c7f]/.test(query)) return 'te';
+  if (requested === 'te' || /[\u0c00-\u0c7f]/.test(query)) return 'te';
   if (requested === 'hi' || isHindi(query)) return 'hi';
   return 'en';
 }

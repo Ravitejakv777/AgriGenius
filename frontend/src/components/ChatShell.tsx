@@ -28,7 +28,20 @@ export function ChatShell() {
   const location = useLocation();
   const { isAuthenticated, user } = useAuth();
   const initialHandled = useRef(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (user?.email) {
+      try {
+        const cached = localStorage.getItem(`agrigenius_chat_thread_${user.email.toLowerCase()}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {
+        // ignore parse error
+      }
+    }
+    return [];
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -60,6 +73,49 @@ export function ChatShell() {
         const data = await fetchChatHistoryApi(user.email, user.id);
         if (Array.isArray(data)) {
           setDbChatHistory(data);
+          // Restore messages if empty or not yet loaded
+          setMessages((prev) => {
+            if (prev.length > 0) return prev;
+            try {
+              const cached = localStorage.getItem(`agrigenius_chat_thread_${user.email.toLowerCase()}`);
+              if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+              }
+            } catch {}
+
+            if (data.length > 0) {
+              const reconstructed: Message[] = [];
+              [...data].reverse().forEach((item) => {
+                reconstructed.push({
+                  id: `hist_q_${item.id}`,
+                  role: 'user',
+                  content: item.query,
+                });
+                reconstructed.push({
+                  id: `hist_a_${item.id}`,
+                  role: 'assistant',
+                  content: item.answer,
+                  responseDetails: {
+                    sources: item.sources || [],
+                    grounded: item.grounded ?? true,
+                    query: item.query,
+                    answer: item.answer,
+                    confidence: item.confidence || 'verified',
+                    language: item.language || 'en',
+                  },
+                });
+              });
+              try {
+                localStorage.setItem(
+                  `agrigenius_chat_thread_${user.email.toLowerCase()}`,
+                  JSON.stringify(reconstructed)
+                );
+              } catch {}
+              return reconstructed;
+            }
+            return prev;
+          });
         }
       } catch (err) {
         console.warn('Could not load chat history from database:', err);
@@ -73,7 +129,37 @@ export function ChatShell() {
     loadDbHistory();
   }, [loadDbHistory]);
 
-  const handleSendMessage = async (query: string, language: "auto" | "en" | "hi") => {
+  // Sync with per-user localStorage when active user changes
+  useEffect(() => {
+    if (user?.email) {
+      try {
+        const cached = localStorage.getItem(`agrigenius_chat_thread_${user.email.toLowerCase()}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setMessages(parsed);
+            return;
+          }
+        }
+      } catch {}
+      loadDbHistory();
+    } else if (!isAuthenticated) {
+      setMessages([]);
+    }
+  }, [user?.email, isAuthenticated, loadDbHistory]);
+
+  // Auto-persist active messages to per-user localStorage cache
+  useEffect(() => {
+    if (user?.email && messages.length > 0) {
+      try {
+        localStorage.setItem(`agrigenius_chat_thread_${user.email.toLowerCase()}`, JSON.stringify(messages));
+      } catch (e) {
+        console.warn('Could not cache messages:', e);
+      }
+    }
+  }, [messages, user?.email]);
+
+  const handleSendMessage = async (query: string, language: "auto" | "en" | "hi" | "te") => {
     // Auth gate for unauthenticated users
     if (!isAuthenticated) {
       setShowAuthGateModal(true);
@@ -116,7 +202,7 @@ export function ChatShell() {
           capturedSources = sources;
           const responseLanguage = /[\u0c00-\u0c7f]/.test(query)
             ? 'te'
-            : (language === 'hi' || /[\u0900-\u097f]/.test(query) ? 'hi' : 'en');
+            : (language === 'hi' || /[\u0900-\u097f]/.test(query) ? 'hi' : (language === 'te' ? 'te' : 'en'));
           setMessages(prev => 
             prev.map(msg => 
               msg.id === assistantId 
@@ -180,40 +266,55 @@ export function ChatShell() {
   const activeSources = activeMessageWithSources?.responseDetails?.sources || [];
 
   const handleLoadHistoryItem = (item: any) => {
-    setMessages([
-      { id: `hist_q_${item.id}`, role: 'user', content: item.query },
-      {
-        id: `hist_a_${item.id}`,
-        role: 'assistant',
-        content: item.answer,
-        responseDetails: {
-          sources: item.sources || [],
-          grounded: item.grounded ?? true,
-          query: item.query,
-          answer: item.answer,
-          confidence: item.confidence || 'verified',
-          language: item.language || 'en'
-        }
-      }
-    ]);
+    const qId = `hist_q_${item.id}`;
+    const exists = messages.some((m) => m.id === qId || (m.role === 'user' && m.content === item.query));
+    if (!exists) {
+      setMessages((prev) => [
+        ...prev,
+        { id: qId, role: 'user', content: item.query },
+        {
+          id: `hist_a_${item.id}`,
+          role: 'assistant',
+          content: item.answer,
+          responseDetails: {
+            sources: item.sources || [],
+            grounded: item.grounded ?? true,
+            query: item.query,
+            answer: item.answer,
+            confidence: item.confidence || 'verified',
+            language: item.language || 'en',
+          },
+        },
+      ]);
+    }
     setIsSidebarOpen(false);
+    setTimeout(() => {
+      const el = document.getElementById(`msg-${qId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        scrollToBottom();
+      }
+    }, 100);
   };
 
-  const handleClearAllHistory = async () => {
-    setMessages([]);
-    setShowSources(false);
-    if (isAuthenticated && user?.email) {
-      try {
-        await clearChatHistoryApi(user.email, user.id);
-        setDbChatHistory([]);
-      } catch (err) {
-        console.warn('Could not clear history on server:', err);
-      }
-    }
-  };
 
   const handleDeleteSingleHistory = async (historyId: number) => {
-    setDbChatHistory(prev => prev.filter(item => item.id !== historyId));
+    setDbChatHistory((prev) => prev.filter((item) => item.id !== historyId));
+    setMessages((prev) => {
+      const filtered = prev.filter(
+        (m) => m.id !== `hist_q_${historyId}` && m.id !== `hist_a_${historyId}`
+      );
+      if (user?.email) {
+        try {
+          localStorage.setItem(
+            `agrigenius_chat_thread_${user.email.toLowerCase()}`,
+            JSON.stringify(filtered)
+          );
+        } catch {}
+      }
+      return filtered;
+    });
     if (isAuthenticated && user?.email) {
       try {
         await clearChatHistoryApi(user.email, user.id, historyId);
@@ -224,7 +325,18 @@ export function ChatShell() {
   };
 
   const handleDeleteMessage = (messageId: string) => {
-    setMessages(prev => prev.filter(m => m.id !== messageId));
+    setMessages((prev) => {
+      const filtered = prev.filter((m) => m.id !== messageId);
+      if (user?.email) {
+        try {
+          localStorage.setItem(
+            `agrigenius_chat_thread_${user.email.toLowerCase()}`,
+            JSON.stringify(filtered)
+          );
+        } catch {}
+      }
+      return filtered;
+    });
   };
 
   return (
@@ -274,9 +386,8 @@ export function ChatShell() {
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => {
-              setMessages([]);
-              setShowSources(false);
               setIsSidebarOpen(false);
+              scrollToBottom();
             }}
             className="w-full bg-emerald-600 hover:bg-emerald-500 dark:bg-white dark:text-black dark:hover:bg-neutral-200 text-white rounded-xl py-2 px-3 flex items-center justify-center font-semibold text-xs shadow-sm dark:shadow-none transition-all cursor-pointer"
           >
@@ -289,16 +400,6 @@ export function ChatShell() {
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
           <div className="flex items-center justify-between text-[11px] font-semibold text-slate-400 dark:text-neutral-500 px-1">
             <span>Recent</span>
-            {(dbChatHistory.length > 0 || messages.length > 0) && (
-              <button
-                type="button"
-                onClick={handleClearAllHistory}
-                className="hover:text-red-500 transition-colors cursor-pointer"
-                title="Clear all saved queries"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            )}
           </div>
 
           {dbChatHistory.length > 0 ? (
@@ -382,18 +483,6 @@ export function ChatShell() {
 
           {/* Right Action Icons & Sources Toggle */}
           <div className="flex items-center space-x-2.5">
-            {/* Delete Chat at the Top */}
-            {messages.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearAllHistory}
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60 transition-all cursor-pointer shadow-sm"
-                title="Delete current chat"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                <span>Delete Chat</span>
-              </button>
-            )}
 
             <button
               type="button"

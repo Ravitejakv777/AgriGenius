@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sparkles, 
@@ -32,14 +32,12 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 import { saveReportApi, fetchReportsApi, deleteReportApi } from '../lib/api';
 
-export type LanguageCode = 'en' | 'hi' | 'te' | 'mr' | 'ta';
+export type LanguageCode = 'en' | 'hi' | 'te';
 
 export const SUPPORTED_LANGUAGES: { code: LanguageCode; label: string; native: string; badge: string }[] = [
   { code: 'en', label: 'English', native: 'English', badge: 'EN' },
   { code: 'hi', label: 'Hindi', native: 'हिन्दी', badge: 'HI' },
   { code: 'te', label: 'Telugu', native: 'తెలుగు', badge: 'TE' },
-  { code: 'mr', label: 'Marathi', native: 'मराठी', badge: 'MR' },
-  { code: 'ta', label: 'Tamil', native: 'தமிழ்', badge: 'TA' },
 ];
 
 export interface CropReportState {
@@ -138,38 +136,6 @@ const UI_TEXT: Record<LanguageCode, {
     reportTitle: 'ఊహాత్మక పంట ప్రణాళిక అంచనా',
     reportSubtitle: 'ప్రోటోటైప్ అంచనా; నిర్ణయానికి ముందు స్థానికంగా ధృవీకరించండి',
     previousReports: 'మునుపటి నివేదికలు',
-  },
-  mr: {
-    step: 'प्रश्न',
-    of: 'पैकी',
-    next: 'पुढील प्रश्न',
-    back: 'मागे',
-    generate: 'उदाहरणात्मक पीक अंदाज तयार करा',
-    generating: 'उदाहरणात्मक अंदाज मोजत आहे...',
-    newReport: 'नवीन अंदाज',
-    copy: 'कॉपी करा',
-    copied: 'कॉपी केले!',
-    downloadPdf: 'पीडीएफ अहवाल डाउनलोड करा',
-    consultAi: 'KCC मार्गदर्शन तपासण्यासाठी सहाय्यकाला विचारा',
-    reportTitle: 'उदाहरणात्मक पीक नियोजन अंदाज',
-    reportSubtitle: 'प्रोटोटाइप अंदाज; निर्णयापूर्वी स्थानिक पडताळणी करा',
-    previousReports: 'मागील अहवाल',
-  },
-  ta: {
-    step: 'கேள்வி',
-    of: 'இல்',
-    next: 'அடுத்த கேள்வி',
-    back: 'பின்செல்',
-    generate: 'எடுத்துக்காட்டு பயிர் மதிப்பீட்டை உருவாக்குக',
-    generating: 'எடுத்துக்காட்டு மதிப்பீடு கணக்கிடப்படுகிறது...',
-    newReport: 'புதிய மதிப்பீடு',
-    copy: 'நகலெடு',
-    copied: 'நகலெடுக்கப்பட்டது!',
-    downloadPdf: 'PDF அறிக்கையை பதிவிறக்கவும்',
-    consultAi: 'KCC வழிகாட்டலைச் சரிபார்க்க உதவியாளரிடம் கேட்கவும்',
-    reportTitle: 'எடுத்துக்காட்டு பயிர் திட்ட மதிப்பீடு',
-    reportSubtitle: 'முன்மாதிரி மதிப்பீடு; செயலுக்கு முன் உள்ளூரில் சரிபார்க்கவும்',
-    previousReports: 'முந்தைய அறிக்கைகள்',
   },
 };
 
@@ -490,7 +456,7 @@ function generateRecommendationReport(form: CropReportState, targetLang: Languag
  * Clean Single-Page A4 Printable PDF generator matching the exact report layout.
  * Uses an invisible iframe so it NEVER redirects to about:blank or opens unnecessary new tabs.
  */
-function downloadCleanPdfReport(report: GeneratedReport) {
+export function downloadCleanPdfReport(report: GeneratedReport) {
   const existingFrame = document.getElementById('agri-pdf-iframe');
   if (existingFrame) {
     existingFrame.remove();
@@ -822,6 +788,7 @@ function downloadCleanPdfReport(report: GeneratedReport) {
 
 export function ReportPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [form, setForm] = useState<CropReportState>(DEFAULT_STATE);
@@ -833,10 +800,13 @@ export function ReportPage() {
   const [showPreviousReports, setShowPreviousReports] = useState(false);
   const [showAuthGateModal, setShowAuthGateModal] = useState(false);
 
-  // Load reports created in this browser or from database
+  // Load reports created for this user or from database
   const [previousReports, setPreviousReports] = useState<GeneratedReport[]>(() => {
     try {
-      const saved = localStorage.getItem('agrigenius_previous_reports');
+      const key = user?.email
+        ? `agrigenius_reports_${user.email.toLowerCase()}`
+        : 'agrigenius_reports_guest';
+      const saved = localStorage.getItem(key) || (!user?.email ? localStorage.getItem('agrigenius_previous_reports') : null);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -849,25 +819,84 @@ export function ReportPage() {
     return [];
   });
 
-  // Fetch reports from database for logged in user
+  // Handle external navigation (e.g. from Profile page clicking "View Report" or "Advisory Reports")
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.selectedReport) {
+      setGeneratedReport(state.selectedReport);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (state?.openPreviousReports) {
+      setShowPreviousReports(true);
+    }
+  }, [location.state]);
+
+  // Fetch reports from database for logged in user and persist per user
   useEffect(() => {
     if (isAuthenticated && user?.email) {
+      const key = `agrigenius_reports_${user.email.toLowerCase()}`;
+      try {
+        const cached = localStorage.getItem(key);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setPreviousReports(parsed);
+          }
+        }
+      } catch {}
+
       fetchReportsApi(user.email, user.id)
         .then((dbReports) => {
-          if (Array.isArray(dbReports) && dbReports.length > 0) {
+          if (Array.isArray(dbReports)) {
             const mapped: GeneratedReport[] = [];
             for (const r of dbReports) {
-              if (r.report_data && r.report_data.id) {
+              if (r.report_data && (r.report_data.id || r.report_code)) {
                 mapped.push({
                   ...r.report_data,
+                  id: r.report_data.id || r.report_code || `REP-${r.id}`,
                   dbId: r.id
+                } as any);
+              } else if (r) {
+                mapped.push({
+                  id: r.report_code || `REP-${r.id}`,
+                  dbId: r.id,
+                  date: r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Recent',
+                  farmer: {
+                    name: r.farmer_name || user.name || 'Farmer',
+                    location: r.location || user.place || 'India',
+                    landAcres: r.land_acres || '1',
+                    soilType: r.soil_type || 'Loamy',
+                    waterAvailability: r.water_availability || 'Medium',
+                    previousCrop: r.previous_crop || 'None',
+                    previousYield: r.previous_yield || '',
+                    nextSeason: r.next_season || 'Kharif',
+                    investmentBudget: r.budget || 'Medium',
+                    mainObjective: r.main_objective || 'Maximum Profit',
+                  },
+                  topSelectedCrop: {
+                    name: r.top_crop || 'Recommended Crop',
+                    hindiName: '',
+                    projectedGrossRevenue: 0,
+                    projectedNetReturn: 0,
+                    waterSuitability: 'Suitable',
+                    soilSuitability: 'Suitable',
+                    seasonSuitability: 'Suitable',
+                  },
+                  finalRecommendation: {
+                    bestCrop: r.top_crop || 'Recommended Crop',
+                    profitabilityRange: 'High Return',
+                    riskProfile: 'Balanced',
+                  },
+                  cropScenarios: [],
+                  estimatedTotalNetReturn: 50000,
+                  estimatedNetReturnPerAcre: 50000,
+                  language: r.language || 'en',
                 } as any);
               }
             }
             if (mapped.length > 0) {
               setPreviousReports(mapped);
               try {
-                localStorage.setItem('agrigenius_previous_reports', JSON.stringify(mapped));
+                localStorage.setItem(key, JSON.stringify(mapped));
               } catch (e) {
                 console.warn(e);
               }
@@ -875,8 +904,33 @@ export function ReportPage() {
           }
         })
         .catch((err) => console.warn('Could not load reports from database:', err));
+    } else if (!isAuthenticated) {
+      try {
+        const guestSaved = localStorage.getItem('agrigenius_reports_guest');
+        if (guestSaved) {
+          const parsed = JSON.parse(guestSaved);
+          if (Array.isArray(parsed)) setPreviousReports(parsed);
+        } else {
+          setPreviousReports([]);
+        }
+      } catch {}
     }
   }, [isAuthenticated, user?.email, user?.id]);
+
+  // Pre-populate details from logged-in user profile
+  useEffect(() => {
+    if (user) {
+      setForm((prev) => ({
+        ...prev,
+        fullName: prev.fullName || user.name || '',
+        location:
+          prev.location ||
+          user.place ||
+          [user.village, user.district, user.state, user.country].filter(Boolean).join(', ') ||
+          '',
+      }));
+    }
+  }, [user]);
 
   const deleteReportFromHistory = (reportId: string) => {
     const target = previousReports.find(r => r.id === reportId);
@@ -889,8 +943,11 @@ export function ReportPage() {
 
     setPreviousReports((prev) => {
       const updated = prev.filter((r) => r.id !== reportId);
+      const key = user?.email
+        ? `agrigenius_reports_${user.email.toLowerCase()}`
+        : 'agrigenius_reports_guest';
       try {
-        localStorage.setItem('agrigenius_previous_reports', JSON.stringify(updated));
+        localStorage.setItem(key, JSON.stringify(updated));
       } catch (e) {
         console.error('Failed to delete report:', e);
       }
@@ -978,11 +1035,14 @@ export function ReportPage() {
           .catch((err) => console.warn('Could not save report to database:', err));
       }
 
-      // Save to local state and localStorage history
+      // Save to local state and per-user localStorage history
       setPreviousReports((prev) => {
         const updated = [report, ...prev.filter((r) => r.id !== report.id)];
+        const key = user?.email
+          ? `agrigenius_reports_${user.email.toLowerCase()}`
+          : 'agrigenius_reports_guest';
         try {
-          localStorage.setItem('agrigenius_previous_reports', JSON.stringify(updated));
+          localStorage.setItem(key, JSON.stringify(updated));
         } catch (e) {
           console.error('Failed to save report to history:', e);
         }
@@ -1411,7 +1471,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                         type="text"
                         value={form.fullName}
                         onChange={(e) => setForm({ ...form, fullName: e.target.value })}
-                        placeholder="e.g. Ramesh Kumar"
+                        placeholder={user?.name || "Full name"}
                         className="w-full bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white dark:focus:border-white"
                       />
                     </div>
@@ -1452,7 +1512,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                           type="text"
                           value={form.location}
                           onChange={(e) => setForm({ ...form, location: e.target.value })}
-                          placeholder="e.g. Anantapur, Andhra Pradesh (or Village, District, State)"
+                          placeholder={user?.place || [user?.village, user?.district, user?.state, user?.country].filter(Boolean).join(', ') || "Village, District, State"}
                           className="w-full bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white dark:focus:border-white"
                         />
                       </div>
@@ -1698,7 +1758,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                           type="text"
                           value={form.previousCrop}
                           onChange={(e) => setForm({ ...form, previousCrop: e.target.value })}
-                          placeholder="e.g. Groundnut / Paddy / Cotton"
+                          placeholder="Previous crop name"
                           className="w-full bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white dark:focus:border-white"
                         />
                         <div className="flex flex-wrap gap-1 mt-2">
@@ -1724,7 +1784,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                           type="text"
                           value={form.previousYield}
                           onChange={(e) => setForm({ ...form, previousYield: e.target.value })}
-                          placeholder="e.g. 6 quintals/acre"
+                          placeholder="Yield per acre"
                           className="w-full bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white dark:focus:border-white"
                         />
                         <div className="flex flex-wrap gap-1 mt-2">
@@ -2421,7 +2481,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                       {t.previousReports}
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-neutral-400 m-0">
-                      {previousReports.length} advisory report{previousReports.length !== 1 ? 's' : ''} saved locally
+                      {previousReports.length} advisory report{previousReports.length !== 1 ? 's' : ''} {isAuthenticated ? 'saved to your profile in Neon DB' : 'saved locally'}
                     </p>
                   </div>
                 </div>
@@ -2538,7 +2598,7 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
               {/* Modal Footer */}
               <div className="p-4 sm:p-5 border-t border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-neutral-900/40 flex items-center justify-between">
                 <span className="text-xs text-slate-500 dark:text-neutral-400 font-medium">
-                  Locally stored in your browser
+                  {isAuthenticated ? 'Permanently stored in database for your account' : 'Locally stored in your browser'}
                 </span>
                 <button
                   type="button"

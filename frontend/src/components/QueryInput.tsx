@@ -3,13 +3,13 @@ import { Send, Mic, MicOff, Globe } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface QueryInputProps {
-  onSend: (query: string, language: "auto" | "en" | "hi") => void;
+  onSend: (query: string, language: "auto" | "en" | "hi" | "te") => void;
   disabled: boolean;
 }
 
 export function QueryInput({ onSend, disabled }: QueryInputProps) {
   const [query, setQuery] = useState('');
-  const [language, setLanguage] = useState<"auto" | "en" | "hi">('auto');
+  const [language, setLanguage] = useState<"auto" | "en" | "hi" | "te">('auto');
   const [isListening, setIsListening] = useState(false);
   const [recognition, setRecognition] = useState<any>(null);
 
@@ -49,7 +49,7 @@ export function QueryInput({ onSend, disabled }: QueryInputProps) {
 
   useEffect(() => {
     if (recognition) {
-      recognition.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
+      recognition.lang = language === 'te' ? 'te-IN' : (language === 'hi' ? 'hi-IN' : 'en-IN');
     }
   }, [language, recognition]);
 
@@ -98,7 +98,7 @@ export function QueryInput({ onSend, disabled }: QueryInputProps) {
               rows={1}
               style={{ boxShadow: 'none' }}
               className="block flex-1 min-w-0 resize-none border-transparent focus:border-transparent focus:ring-0 outline-none bg-transparent py-3 pl-3.5 sm:pl-4 pr-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-neutral-500 text-xs sm:text-sm leading-relaxed min-h-[46px] max-h-[120px]"
-              placeholder={isListening ? "Listening... Speak now" : "Ask a farming question in English or हिन्दी..."}
+              placeholder={isListening ? "Listening... Speak now" : "Ask a farming question in English, हिन्दी, or తెలుగు..."}
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -127,8 +127,9 @@ export function QueryInput({ onSend, disabled }: QueryInputProps) {
                   title="Choose input language"
                 >
                   <option value="auto">Auto</option>
-                  <option value="en">EN</option>
+                  <option value="en">English</option>
                   <option value="hi">हिन्दी</option>
+                  <option value="te">తెలుగు</option>
                 </select>
               </div>
               

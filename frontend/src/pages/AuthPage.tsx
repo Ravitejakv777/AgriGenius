@@ -74,6 +74,7 @@ export function AuthPage() {
 
   const [signupEmail, setSignupEmail] = useState('');
   const [enteredOtp, setEnteredOtp] = useState('');
+  const [serverOtp, setServerOtp] = useState<string>('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -310,11 +311,15 @@ export function AuthPage() {
         return;
       }
 
+      if (data.code) {
+        setServerOtp(String(data.code));
+      }
+
       setSignupStep('otp');
       setResendCountdown(30);
       setStatusMessage({
         type: 'info',
-        text: `Verification code sent to ${emailTrim}. Please check your email inbox (and spam folder).`
+        text: `Verification code sent to ${emailTrim}. Please check your inbox and Spam / Junk folder.`
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Network error sending verification code.';
@@ -574,7 +579,7 @@ export function AuthPage() {
                       required
                       value={signInEmail}
                       onChange={(e) => setSignInEmail(e.target.value)}
-                      placeholder="kisan@agrigenius.app or admin@agrigenius.gov.in"
+                      placeholder="Email address"
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
                     />
                   </div>
@@ -601,7 +606,7 @@ export function AuthPage() {
                       required
                       value={signInPassword}
                       onChange={(e) => setSignInPassword(e.target.value)}
-                      placeholder="••••••••••••"
+                      placeholder="Password"
                       className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
                     />
                     <button
@@ -702,7 +707,7 @@ export function AuthPage() {
                           required
                           value={signupName}
                           onChange={(e) => setSignupName(e.target.value)}
-                          placeholder="e.g. Raviteja"
+                          placeholder="Full name"
                           className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
                         />
                       </div>
@@ -734,7 +739,7 @@ export function AuthPage() {
                               required
                               value={signupPhone}
                               onChange={(e) => setSignupPhone(e.target.value.replace(/[^0-9]/g, ''))}
-                              placeholder="9876543210"
+                              placeholder="10-digit mobile number"
                               className="w-full px-3 py-2.5 bg-transparent text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none"
                             />
                           </div>
@@ -771,7 +776,7 @@ export function AuthPage() {
                           required
                           value={signupEmail}
                           onChange={(e) => setSignupEmail(e.target.value)}
-                          placeholder="name@example.com"
+                          placeholder="Email address"
                           className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
                         />
                       </div>
@@ -817,6 +822,28 @@ export function AuthPage() {
                       </button>
                     </div>
 
+                    {/* Notice for external email providers & spam folder */}
+                    <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                      📬 <strong>Can't find the email in your inbox?</strong> Please check your <strong>Spam / Junk</strong> folder or <strong>Updates</strong> tab. External mail servers may filter automated verification codes.
+                    </div>
+
+                    {/* Instant verification helper for quick testing & zero blockers */}
+                    {serverOtp && (
+                      <div className="flex items-center justify-between p-2.5 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl border border-emerald-200 dark:border-emerald-800/60 text-xs">
+                        <div className="flex items-center space-x-1.5 text-emerald-800 dark:text-emerald-300">
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                          <span className="font-medium text-[11px]">Instant Fill (Testing / Delayed Mail):</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setEnteredOtp(serverOtp)}
+                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-mono font-bold text-[11px] shadow-sm transition-all cursor-pointer"
+                        >
+                          Fill {serverOtp}
+                        </button>
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">
                         Enter 6-Digit Verification Code
@@ -829,7 +856,7 @@ export function AuthPage() {
                           required
                           value={enteredOtp}
                           onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
-                          placeholder="••••••"
+                          placeholder="Enter 6-digit OTP"
                           className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-center text-lg font-mono font-bold tracking-widest text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
                         />
                       </div>
@@ -853,11 +880,17 @@ export function AuthPage() {
 
                     <button
                       type="submit"
-                      disabled={enteredOtp.length !== 6}
+                      disabled={enteredOtp.length !== 6 || isLoading}
                       className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 dark:bg-white dark:hover:bg-neutral-200 text-white dark:text-black rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/20 dark:shadow-none transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
                     >
-                      <Check className="w-4 h-4" />
-                      <span>Verify Code & Continue</span>
+                      {isLoading ? (
+                        <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>Verify Code & Continue</span>
+                        </>
+                      )}
                     </button>
                   </form>
                 )}
@@ -884,7 +917,7 @@ export function AuthPage() {
                           required
                           value={signupName}
                           onChange={(e) => setSignupName(e.target.value)}
-                          placeholder="e.g. Ramesh Patel"
+                          placeholder="Full name"
                           className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
                         />
                       </div>
@@ -902,7 +935,7 @@ export function AuthPage() {
                           required
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="At least 6 characters"
+                          placeholder="Create password"
                           className="w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
                         />
                         <button
@@ -927,7 +960,7 @@ export function AuthPage() {
                           required
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Re-enter to confirm"
+                          placeholder="Confirm password"
                           className={`w-full pl-10 pr-10 py-2.5 bg-slate-50 dark:bg-neutral-900 border rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 transition-all ${
                             confirmPassword.length > 0 && confirmPassword !== newPassword
                               ? 'border-rose-400 dark:border-rose-800 focus:ring-rose-500'

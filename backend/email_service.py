@@ -5,9 +5,15 @@ import time
 from typing import Dict, Any, Optional
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formatdate, make_msgid
 from dotenv import load_dotenv
 
-load_dotenv()
+# Ensure environment variables are loaded from root .env
+_env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
+if os.path.exists(_env_path):
+    load_dotenv(dotenv_path=_env_path, override=True)
+else:
+    load_dotenv(override=True)
 
 # SMTP Configuration from .env
 SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
@@ -48,7 +54,11 @@ def verify_otp_code(email: str, code: str) -> bool:
     return False
 
 def _get_smtp_config():
-    load_dotenv(override=True)
+    _env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
+    if os.path.exists(_env_file):
+        load_dotenv(dotenv_path=_env_file, override=True)
+    else:
+        load_dotenv(override=True)
     host = os.environ.get("SMTP_HOST", "").strip()
     port = int(os.environ.get("SMTP_PORT", "587"))
     user = os.environ.get("SMTP_USER", "").strip()
@@ -59,19 +69,27 @@ def _get_smtp_config():
     return host, port, user, password, from_email, from_name
 
 def _send_email_smtp(to_email: str, subject: str, html_body: str, text_body: str) -> bool:
-    """Send email via SMTP if credentials are configured, or log fallback."""
+    """Send email via SMTP with full RFC 5322 compliance (Date, Message-ID, Reply-To, Auto-Submitted)."""
+    clean_to = to_email.strip().lower()
     host, port, user, password, from_email, from_name = _get_smtp_config()
     
     if not host or not user or not password:
-        print(f"[Email Service] SMTP not configured in .env. Simulated sending '{subject}' to {to_email}")
+        print(f"[Email Service] SMTP not configured in .env. Simulated sending '{subject}' to {clean_to}")
         print(f"[Email Service] TIP: Add SMTP_HOST, SMTP_USER, SMTP_PASSWORD in .env to deliver real emails to inbox.")
         return True
 
     try:
         msg = MIMEMultipart("alternative")
+        msg["Date"] = formatdate(localtime=True)
+        domain = host if "gmail" not in host else "gmail.com"
+        msg["Message-ID"] = make_msgid(domain=domain)
         msg["Subject"] = subject
         msg["From"] = f"{from_name} <{from_email}>"
-        msg["To"] = to_email
+        msg["To"] = clean_to
+        msg["Reply-To"] = from_email
+        msg["Auto-Submitted"] = "auto-generated"
+        msg["X-Mailer"] = "AgriGenius Advisory Platform (RFC 5322 Compliant)"
+        msg["MIME-Version"] = "1.0"
 
         part1 = MIMEText(text_body, "plain", "utf-8")
         part2 = MIMEText(html_body, "html", "utf-8")
@@ -85,22 +103,30 @@ def _send_email_smtp(to_email: str, subject: str, html_body: str, text_body: str
             server.starttls()
 
         server.login(user, password)
-        server.sendmail(from_email, [to_email], msg.as_string())
+        rejected = server.sendmail(from_email, [clean_to], msg.as_string())
         server.quit()
-        print(f"[Email Service] Real email sent successfully to {to_email} via {host}")
+
+        if rejected:
+            print(f"[Email Service] Recipient rejected: {rejected}")
+            return False
+
+        print(f"[Email Service] RFC 5322 email delivered successfully to {clean_to} via {host}")
         return True
     except Exception as e:
-        print(f"[Email Service] SMTP delivery failed to {to_email}: {e}")
+        print(f"[Email Service] SMTP delivery failed to {clean_to}: {e}")
         return False
 
 def send_otp_email(to_email: str, code: str) -> bool:
     """Send a verification code email to user."""
+    clean_to = to_email.strip().lower()
     subject = f"{code} is your AgriGenius verification code"
     text_body = f"""Hello,
 
 Your verification code for AgriGenius is: {code}
 
 This code is valid for 10 minutes. Please enter this code on the verification screen to proceed.
+
+Tip: If this email arrived in your Spam or Junk folder, please mark it as "Not Spam" or move it to your Primary Inbox to ensure you receive future crop advisories and alerts.
 
 If you did not request this code, you can safely ignore this email.
 
@@ -131,13 +157,19 @@ National Agricultural AI Advisory Platform
     <div style="padding: 32px 28px; color: #1e293b;">
       <h2 style="font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 12px; color: #0f172a;">Verify your email address</h2>
       <p style="font-size: 14px; line-height: 1.6; color: #475569; margin-bottom: 24px;">
-        Please enter the verification code below to verify your email address and continue with your AgriGenius account setup.
+        Please enter the verification code below to verify your email address (<strong>{clean_to}</strong>) and continue with your AgriGenius account setup.
       </p>
 
       <!-- OTP Code Box -->
-      <div style="background-color: #f0fdf4; border: 2px dashed #86efac; border-radius: 16px; padding: 20px; text-align: center; margin-bottom: 24px;">
+      <div style="background-color: #f0fdf4; border: 2px dashed #86efac; border-radius: 16px; padding: 20px; text-align: center; margin-bottom: 20px;">
         <span style="display: block; font-size: 11px; text-transform: uppercase; font-family: monospace; font-weight: 700; color: #15803d; letter-spacing: 1px; margin-bottom: 6px;">Your 6-Digit Code</span>
         <span style="font-size: 34px; font-weight: 900; font-family: monospace; letter-spacing: 8px; color: #166534; display: inline-block;">{code}</span>
+      </div>
+
+      <div style="background-color: #eff6ff; border-radius: 10px; padding: 12px 14px; margin-bottom: 18px; border: 1px solid #bfdbfe;">
+        <p style="font-size: 12px; color: #1e40af; margin: 0; line-height: 1.4;">
+          📬 <strong>Inbox Tip:</strong> If this email appeared in your Spam or Junk folder, mark it as <em>"Not Spam"</em> so your future agricultural advisories arrive directly in your inbox.
+        </p>
       </div>
 
       <p style="font-size: 12px; color: #64748b; line-height: 1.5; margin-bottom: 0;">
@@ -151,13 +183,14 @@ National Agricultural AI Advisory Platform
     </div>
 
   </div>
-</body>
+ </body>
 </html>"""
 
-    return _send_email_smtp(to_email, subject, html_body, text_body)
+    return _send_email_smtp(clean_to, subject, html_body, text_body)
 
 def send_welcome_email(to_email: str, name: str, role: str = "farmer") -> bool:
     """Send welcome and confirmation email upon successful account creation."""
+    clean_to = to_email.strip().lower()
     subject = f"Welcome to AgriGenius, {name}! 🌱"
     role_display = role.capitalize()
     
@@ -166,7 +199,7 @@ def send_welcome_email(to_email: str, name: str, role: str = "farmer") -> bool:
 Welcome to AgriGenius — your national AI-powered agricultural advisory platform!
 
 Your account has been successfully created:
-• Email: {to_email}
+• Email: {clean_to}
 • Role: {role_display}
 
 What you can do with AgriGenius:

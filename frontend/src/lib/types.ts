@@ -1,6 +1,6 @@
 export type ChatRequest = {
   query: string;
-  language: "auto" | "en" | "hi";
+  language: "auto" | "en" | "hi" | "te";
   crop?: string;
   district?: string;
   top_k?: number;

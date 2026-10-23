@@ -112,6 +112,7 @@ export function ChatMessage({ message, onOpenSources, onDelete }: ChatMessagePro
       initial={{ opacity: 0, scale: 0.97, y: 16 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{ duration: 0.35, type: 'spring', bounce: 0.15 }}
+      id={`msg-${message.id}`}
       className={`py-3 px-2 sm:px-4 flex w-full group ${isUser ? 'justify-end' : 'justify-start'}`}
     >
       <div className={`flex gap-3 max-w-3xl w-full ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
