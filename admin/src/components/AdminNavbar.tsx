@@ -1,6 +1,7 @@
-import { ShieldCheck, Sun, Moon, LogOut, Database } from 'lucide-react';
+import { Sun, Moon, LogOut, Database } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useAdminTheme } from '../context/AdminThemeContext';
+import { AgriGeniusLogo } from './AgriGeniusLogo';
 import type { DbStatus } from '../lib/types';
 
 interface AdminNavbarProps {
@@ -19,9 +20,7 @@ export function AdminNavbar({ dbStatus }: AdminNavbarProps) {
           {/* Left: Brand & Database Badge */}
           <div className="flex items-center space-x-3 sm:space-x-4">
             <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-600 dark:bg-white text-white dark:text-black flex items-center justify-center shadow-md shadow-emerald-500/20 font-bold">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
+              <AgriGeniusLogo size="md" className="shadow-md" />
               <div>
                 <div className="flex items-center space-x-2">
                   <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">

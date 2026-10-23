@@ -395,6 +395,10 @@ def api_delete_account(req: DeleteAccountRequest, db: Session = Depends(get_db))
     username = user.username
     print(f"[Account Deletion] User #{user_id} ({username}, {clean_email}) deleted. Reason: {req.reason}. Feedback: {req.feedback or 'N/A'}")
 
+    # Explicitly remove child reports and chat histories first to avoid FK constraint violations
+    db.query(DBReport).filter(DBReport.user_id == user_id).delete(synchronize_session=False)
+    db.query(DBChatHistory).filter(DBChatHistory.user_id == user_id).delete(synchronize_session=False)
+
     db.delete(user)
     db.commit()
 
@@ -943,10 +947,14 @@ def update_admin_user(user_id: int, req: UpdateUserRequest, db: Session = Depend
 
 @app.delete("/api/admin/users/{user_id}")
 def delete_admin_user(user_id: int, db: Session = Depends(get_db)):
-    """Delete a user record from the Neon DB."""
+    """Delete a user record from the Neon DB with cascade deletion of related data."""
     user = db.query(DBUser).filter(DBUser.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User record not found.")
+
+    # Explicitly remove child reports and chat histories first to avoid FK constraint violations
+    db.query(DBReport).filter(DBReport.user_id == user.id).delete(synchronize_session=False)
+    db.query(DBChatHistory).filter(DBChatHistory.user_id == user.id).delete(synchronize_session=False)
 
     db.delete(user)
     db.commit()

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, Mail, ArrowRight, KeyRound, AlertCircle, Sparkles } from 'lucide-react';
+import { Lock, Mail, ArrowRight, KeyRound, AlertCircle, Sparkles } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useAdminTheme } from '../context/AdminThemeContext';
+import { AgriGeniusLogo } from '../components/AgriGeniusLogo';
 import { DEMO_ADMIN_USERS } from '../lib/mockData';
 
 export function AdminLoginPage() {
@@ -37,9 +38,7 @@ export function AdminLoginPage() {
       {/* Top Banner */}
       <header className="px-6 py-4 flex items-center justify-between border-b border-slate-200 dark:border-neutral-800">
         <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-xl bg-emerald-600 dark:bg-white text-white dark:text-black flex items-center justify-center font-bold">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
+          <AgriGeniusLogo size="sm" />
           <div>
             <div className="text-sm font-black tracking-tight text-slate-900 dark:text-white">
               AgriGenius Command Center

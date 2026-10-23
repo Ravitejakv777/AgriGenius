@@ -57,6 +57,9 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    reports = relationship("Report", back_populates="user", cascade="all, delete-orphan", passive_deletes=True)
+    chat_histories = relationship("ChatHistory", back_populates="user", cascade="all, delete-orphan", passive_deletes=True)
+
 class Report(Base):
     __tablename__ = "reports"
 
@@ -80,7 +83,7 @@ class Report(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    user = relationship("User", backref="reports")
+    user = relationship("User", back_populates="reports")
 
 class ChatHistory(Base):
     __tablename__ = "chat_histories"
@@ -96,7 +99,7 @@ class ChatHistory(Base):
     sources_json = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    user = relationship("User", backref="chat_histories")
+    user = relationship("User", back_populates="chat_histories")
 
 def init_db():
     """Create tables if they do not exist and ensure columns exist."""

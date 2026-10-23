@@ -5,7 +5,6 @@ import { QueryInput } from './QueryInput';
 import { EmptyState } from './EmptyState';
 import { AnimatePresence, motion } from 'framer-motion';
 import { 
-  Leaf, 
   Plus, 
   MessageSquare, 
   FileText, 
@@ -20,6 +19,7 @@ import {
 import { SourceCard } from './SourceCard';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ThemeToggle } from './ThemeToggle';
+import { AgriGeniusLogo } from './AgriGeniusLogo';
 import { useAuth } from '../context/AuthContext';
 import { streamChatMessage, saveChatHistoryApi, fetchChatHistoryApi, clearChatHistoryApi } from '../lib/api';
 
@@ -368,9 +368,7 @@ export function ChatShell() {
             onClick={() => navigate('/')}
             className="flex items-center space-x-2.5 cursor-pointer group"
           >
-            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 dark:from-white dark:to-neutral-200 p-1.5 rounded-xl shadow-md shadow-emerald-500/20 dark:shadow-none group-hover:scale-105 transition-transform text-white dark:text-black">
-              <Leaf className="w-4 h-4 text-white dark:text-black" />
-            </div>
+            <AgriGeniusLogo size="sm" className="group-hover:scale-105" />
             <span className="text-base font-bold text-slate-900 dark:text-white tracking-tight">
               AgriGenius
             </span>

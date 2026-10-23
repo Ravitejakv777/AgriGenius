@@ -1,9 +1,10 @@
 import { StatusPanel } from '../components/StatusPanel';
 import { EvaluationPanel } from '../components/EvaluationPanel';
 import { useNavigate } from 'react-router-dom';
-import { Leaf, Server, Activity, Shield, User } from 'lucide-react';
+import { Server, Activity, Shield, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { AgriGeniusLogo } from '../components/AgriGeniusLogo';
 import { useAuth } from '../context/AuthContext';
 
 export function AboutPage() {
@@ -26,12 +27,10 @@ export function AboutPage() {
       {/* Header */}
       <header className="bg-white dark:bg-black border-b border-slate-200 dark:border-neutral-800 px-4 sm:px-8 py-3.5 sm:py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div 
-          className="flex items-center space-x-2.5 sm:space-x-3 cursor-pointer"
+          className="flex items-center space-x-2.5 sm:space-x-3 cursor-pointer group"
           onClick={() => navigate('/')}
         >
-          <div className="bg-primary-600 dark:bg-white dark:text-black p-1.5 sm:p-2 rounded-lg">
-            <Leaf className="w-4 h-4 sm:w-5 sm:h-5 text-white dark:text-black" />
-          </div>
+          <AgriGeniusLogo size="md" className="group-hover:scale-105" />
           <h1 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white tracking-tight">AgriGenius</h1>
         </div>
         <div className="flex items-center space-x-3">

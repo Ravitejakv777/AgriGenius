@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Leaf, MessageSquare, User } from 'lucide-react';
+import { MessageSquare, User } from 'lucide-react';
+import { AgriGeniusLogo } from '../components/AgriGeniusLogo';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { FanWheelHero } from '../components/FanWheelHero';
 import { useAuth } from '../context/AuthContext';
@@ -23,12 +24,10 @@ export function LandingPage() {
           <div className="flex justify-between items-center h-14 sm:h-16">
             {/* Logo */}
             <div 
-              className="flex items-center space-x-2 sm:space-x-2.5 cursor-pointer"
+              className="flex items-center space-x-2 sm:space-x-2.5 cursor-pointer group"
               onClick={() => navigate('/')}
             >
-              <div className="bg-gradient-to-br from-emerald-500 to-teal-600 dark:from-white dark:to-neutral-200 dark:text-black p-1.5 sm:p-2 rounded-xl shadow-md text-white">
-                <Leaf className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white dark:text-black" />
-              </div>
+              <AgriGeniusLogo size="md" className="group-hover:scale-105" />
               <div>
                 <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
                   AgriGenius

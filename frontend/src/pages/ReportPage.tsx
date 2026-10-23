@@ -29,6 +29,7 @@ import {
   Lock
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { AgriGeniusLogo } from '../components/AgriGeniusLogo';
 import { useAuth } from '../context/AuthContext';
 import { saveReportApi, fetchReportsApi, deleteReportApi } from '../lib/api';
 
@@ -1148,12 +1149,10 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
       <header className="sticky top-0 z-40 bg-white/80 dark:bg-black/90 backdrop-blur-md border-b border-slate-200/80 dark:border-neutral-800 transition-colors">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
           <div
-            className="flex items-center space-x-2.5 cursor-pointer"
+            className="flex items-center space-x-2.5 cursor-pointer group"
             onClick={() => navigate('/')}
           >
-            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 dark:from-white dark:to-neutral-200 dark:text-black p-1.5 sm:p-2 rounded-xl shadow-md text-white">
-              <Sparkles className="w-4 h-4 text-white dark:text-black" />
-            </div>
+            <AgriGeniusLogo size="md" className="group-hover:scale-105" />
             <div>
               <span className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">
                 AgriGenius

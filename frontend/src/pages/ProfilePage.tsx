@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { AgriGeniusLogo } from '../components/AgriGeniusLogo';
 import { CascadingLocationPicker } from '../components/CascadingLocationPicker';
 import { parseLocationString, formatLocationString } from '../lib/locationData';
 import { COUNTRY_CODES, formatPhoneWithCountryCode, parsePhoneWithCountryCode } from '../lib/countryCodes';
@@ -279,12 +280,10 @@ export function ProfilePage() {
             </button>
 
             <div
-              className="flex items-center space-x-2.5 cursor-pointer"
+              className="flex items-center space-x-2.5 cursor-pointer group"
               onClick={() => navigate('/')}
             >
-              <div className="bg-emerald-600 dark:bg-white text-white dark:text-black p-1.5 sm:p-2 rounded-xl shadow-md">
-                <Leaf className="w-4 h-4" />
-              </div>
+              <AgriGeniusLogo size="md" className="group-hover:scale-105" />
               <div>
                 <span className="text-base sm:text-lg font-black tracking-tight">AgriGenius</span>
                 <span className="ml-2 text-[10px] font-mono font-bold uppercase tracking-wider text-emerald-700 dark:text-white bg-emerald-50 dark:bg-neutral-900 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-neutral-800">

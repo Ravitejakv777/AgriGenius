@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  Leaf, 
   Eye, 
   EyeOff, 
   ArrowRight, 
@@ -19,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { AgriGeniusLogo } from '../components/AgriGeniusLogo';
 import { COUNTRY_CODES, formatPhoneWithCountryCode } from '../lib/countryCodes';
 
 // Global declaration for official Google Identity Services SDK
@@ -436,9 +436,7 @@ export function AuthPage() {
             onClick={() => navigate('/')}
             className="flex items-center space-x-2.5 cursor-pointer group"
           >
-            <div className="bg-emerald-600 dark:bg-white dark:text-black text-white p-1.5 sm:p-2 rounded-xl transition-transform group-hover:scale-105">
-              <Leaf className="w-4 h-4 text-white dark:text-black" />
-            </div>
+            <AgriGeniusLogo size="md" className="group-hover:scale-105" />
             <div>
               <span className="text-base sm:text-lg font-black tracking-tight text-slate-900 dark:text-white">
                 AgriGenius
