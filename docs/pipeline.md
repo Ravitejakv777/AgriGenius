@@ -26,7 +26,7 @@ Hindi / Telugu / English farmer question
   -> remove likely question-only rows and near duplicates
   -> BAAI/bge-reranker-v2-m3 cross-encoder reranking
   -> top-k KCC passages and metadata
-  -> Gemini 3 Flash Preview or Groq openai/gpt-oss-20b generation
+  -> Groq Qwen 3.8 27B or Groq openai/gpt-oss-20b generation
   -> SSE answer chunks with source metadata
 ```
 
@@ -49,6 +49,6 @@ The prompt requires answers to stay within the retrieved KCC context, cite sourc
 
 Local record counts, sampled corpus/index alignment, Chroma cosine configuration, provenance metadata, and the frontend production build have been checked. Retrieval quality across languages, abstention under live generation, provider behavior, and deployment remain pending an online end-to-end validation run. The small demo query set is a smoke check, not a benchmark.
 
-Install `lime` for source-card explanations, RAGAS and Instructor for model quality scores, `openai` for the async Gemini-compatible judge client, and `groq` for the second generator. RAGAS scoring uses `GEMINI_API_KEY`, `AGRI_EVAL_JUDGE_MODEL` (default `gemini-3.8-flash`), and Google `gemini-embedding-001` embeddings. The judge uses Google's OpenAI-compatible endpoint with an asynchronous client because RAGAS collection metrics execute asynchronously; embeddings continue to use Google's GenAI SDK. If generation or judge credentials/network access are absent, output/status shows the failure or pending score; no score is substituted. The displayed unsupported-claim rate is `1 - faithfulness`, a proxy rather than a separate hallucination classifier.
+Install `lime` for source-card explanations, RAGAS and Instructor for model quality scores, `openai` for the async Gemini-compatible judge client, and `groq` for both answer generators. Qwen (`AGRI_QWEN_MODEL`, default `qwen/qwen3.8-27b`) and GPT-OSS (`AGRI_GROQ_MODEL`, default `openai/gpt-oss-20b`) use `GROQ_API_KEY`. RAGAS scoring uses `GEMINI_API_KEY`, `AGRI_EVAL_JUDGE_MODEL` (default `gemini-3.8-flash`), and Google `gemini-embedding-001` embeddings. The judge uses Google's OpenAI-compatible endpoint with an asynchronous client because RAGAS collection metrics execute asynchronously; embeddings continue to use Google's GenAI SDK. Generation requests have a 30-second client timeout and RAGAS scoring has a 75-second overall timeout; timeout failures are reported instead of leaving the evaluation pending indefinitely. The displayed unsupported-claim rate is `1 - faithfulness`, a proxy rather than a separate hallucination classifier.
 
-Run `python evaluate_retrieval.py --top-k 5 --fetch-k 20` for per-language crop/category hit rates and `python evaluate_abstention.py --provider gemini` for the unsupported Mars cultivation prompt. These require the embedding and reranker models; the abstention check also requires provider credentials.
+Run `python evaluate_retrieval.py --top-k 5 --fetch-k 20` for per-language crop/category hit rates and `python evaluate_abstention.py --provider qwen` for the unsupported Mars cultivation prompt. These require the embedding and reranker models; the abstention check also requires provider credentials.

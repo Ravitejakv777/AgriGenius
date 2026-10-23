@@ -10,11 +10,11 @@ The RAG pipeline uses `l3cube-pune/indic-sentence-bert-nli` for normalized 768-d
 
 | Role | Configured model | Function |
 | --- | --- | --- |
-| Generator A | Gemini 3 Flash Preview (`gemini-3-flash-preview`, `AGRI_GEMINI_MODEL`) | Produces an answer from the selected KCC passages |
+| Generator A | Qwen 3.8 27B (`qwen/qwen3.8-27b`, `AGRI_QWEN_MODEL`) via Groq | Produces an answer from the selected KCC passages |
 | Generator B | Groq GPT-OSS 20B (`openai/gpt-oss-20b`, `AGRI_GROQ_MODEL`) | Produces a second answer from the exact same passages |
 | Evaluation judge | Gemini 3.8 Flash by default (`AGRI_EVAL_JUDGE_MODEL`) | Scores both outputs with RAGAS using one shared judge configuration |
 
-Generator A now defaults to `gemini-3-flash-preview` based on the project's available quota: the supplied AI Studio snapshot shows up to 20 requests/day, compared with 2 remaining for Gemini 3.6 Flash. Gemini 3.8 Flash remains the RAGAS judge. The model is a preview release, so its availability and limits may change. [Gemini 3 Flash Preview model reference](https://ai.google.dev/gemini-api/docs/models/gemini-3-flash-preview)
+Generator A now defaults to Groq-hosted `qwen/qwen3.8-27b`; Generator B remains `openai/gpt-oss-20b` on Groq. Groq's published rate-limit table lists Qwen 3.8 27B at 30 requests/minute, 1,000 requests/day, 8K tokens/minute, and 200K tokens/day; exact availability and limits are account-specific. The shared Gemini 3.8 Flash judge remains separate. [Groq Qwen 3.8 model card](https://console.groq.com/docs/model/qwen/qwen3.8-27b) · [Groq rate limits](https://console.groq.com/docs/rate-limits)
 
 The `/api/llm/compare` endpoint retrieves context once, then calls each generator separately with identical question, prompt rules, and retrieved passages. Each model result reports provider status, answer text, end-to-end generation latency, and answer character count. Timing excludes the RAGAS judge calls.
 
@@ -51,20 +51,20 @@ The evaluation UI contains starter prompts in Hindi, Telugu, and English, and ac
 3. Cases where the retrieved passages are irrelevant or insufficient, including the Mars/zero-gravity unsupported-query check in `evaluate_abstention.py`.
 4. Multiple questions per language, reviewed for meaning and equivalent difficulty across translations.
 
-For the current UI, run `/evaluation` for each test question with `GEMINI_API_KEY`, `GROQ_API_KEY`, downloaded Indic/BGE models, and compatible RAGAS/Instructor dependencies installed. For a batch run, use `python evaluate_llms.py --query-file <reviewed-cases.json> --output llm_evaluation_results.json`; it stores per-case outputs and provider/language averages. Record the model IDs, date, language, retrieved passage ranks, provider failures, latency, RAGAS outputs, and judge model. A failed provider or judge is reported as unavailable; the UI does not invent replacement responses or scores.
+For the current UI, run `/evaluation` for each test question with `GROQ_API_KEY`, `GEMINI_API_KEY`, downloaded Indic/BGE models, and compatible RAGAS/Instructor dependencies installed. Generation requests time out after 30 seconds, and RAGAS scoring is bounded to 75 seconds. For a batch run, use `python evaluate_llms.py --query-file <reviewed-cases.json> --output llm_evaluation_results.json`; it stores per-case outputs and provider/language averages. Record the model IDs, date, language, retrieved passage ranks, provider failures, latency, RAGAS outputs, and judge model. A failed provider or judge is reported as unavailable; the UI does not invent replacement responses or scores.
 
 ## Results status
 
 | Language / check | Generator comparison | Faithfulness / relevance | Status |
 | --- | --- | --- | --- |
-| Hindi | Gemini 3 Flash Preview vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
-| Telugu | Gemini 3 Flash Preview vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
-| English | Gemini 3 Flash Preview vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
+| Hindi | Qwen 3.8 27B vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
+| Telugu | Qwen 3.8 27B vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
+| English | Qwen 3.8 27B vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
 | Unsupported / insufficient evidence | Run each configured generator and inspect abstention | Context metrics are skipped when no KCC sources are retrieved | Pending live provider access |
 | LIME explanation review | Inspect positive/negative query token weights against ranked passage | Qualitative review required per script | Pending live model access |
 
-No numerical LLM quality results are reported here. A Gemini answer was generated in a live smoke run, but RAGAS scoring failed because the environment's Instructor package lacked `from_genai`; a previous Hugging Face-hosted Llama run also failed after its inference credits were exhausted. The implementation now targets Groq for generator B, and RAGAS/Instructor dependencies are pinned for the Gemini adapter. The LIME algorithm was exercised against a deterministic mock scorer in English, Hindi, and Telugu; that verifies the perturbation/token path only, not AgriGenius model attributions. The local index integrity check is independent of these live model-quality checks.
+No numerical LLM quality results are reported here. An earlier Gemini-generation smoke run failed at RAGAS initialization because the environment's Instructor package lacked `from_genai`; a previous Hugging Face-hosted Llama run also failed after its inference credits were exhausted. The current architecture uses Groq-hosted Qwen and GPT-OSS for generation, with the asynchronous Gemini 3.8 judge kept separate. The LIME algorithm was exercised against a deterministic mock scorer in English, Hindi, and Telugu; that verifies the perturbation/token path only, not AgriGenius model attributions. The local index integrity check is independent of these live model-quality checks.
 
 ## Readiness decision
 
-The required UI and backend paths for LIME, Gemini/Groq dual-provider execution, latency measurement, RAGAS faithfulness, answer relevance, and explicit abstention/unsupported-claim reporting are implemented. Treat model-quality sign-off as pending until both providers run successfully on the reviewed multilingual set and RAGAS/human-review results are recorded. This report does not certify TRL 6 or farmer-facing readiness.
+The required UI and backend paths for LIME, Qwen/GPT-OSS dual-model execution, latency measurement, RAGAS faithfulness, answer relevance, and explicit abstention/unsupported-claim reporting are implemented. Treat model-quality sign-off as pending until both generators run successfully on the reviewed multilingual set and RAGAS/human-review results are recorded. This report does not certify TRL 6 or farmer-facing readiness.

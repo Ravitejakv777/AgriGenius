@@ -8,14 +8,14 @@ AgriGenius is a local RAG prototype for agricultural questions in Hindi, Telugu,
 - ChromaDB collection: `chroma_kcc_db/kcc_agri_advisor` — **493,213 vectors**.
 - Embeddings: `l3cube-pune/indic-sentence-bert-nli`, 768 dimensions, normalized, cosine distance.
 - Reranker: `BAAI/bge-reranker-v2-m3` (configured; requires model access on first load).
-- Answer providers: Gemini 3 Flash Preview and Groq `openai/gpt-oss-20b`.
+- Answer providers: Groq-hosted Qwen `qwen/qwen3.8-27b` and Groq `openai/gpt-oss-20b`.
 - UI/API: React + Vite frontend and FastAPI backend, with SSE chat streaming.
 
 The local Chroma collection records the embedding model, dimensions, normalization, metric, source row count, and SHA-256 fingerprint of the indexed corpus. The Kaggle build notebook `nlp-run1.ipynb` records a 493,213-row build using the same Indic model and normalized 768-dimensional vectors. The separate engineering summary's 508,072 cleaned-row figure does not match the current local corpus and should not be used as the active count.
 
 ## Readiness
 
-The current state is a development prototype. Live multilingual retrieval, Gemini/Groq generation, RAGAS scoring, and the BGE reranker still need end-to-end evaluation before a public or farmer-facing deployment. The application fails visibly when the backend is unavailable; it does not substitute sample agricultural answers.
+The current state is a development prototype. Live multilingual retrieval, Qwen/GPT-OSS generation, RAGAS scoring, and the BGE reranker still need end-to-end evaluation before a public or farmer-facing deployment. The application fails visibly when the backend is unavailable; it does not substitute sample agricultural answers.
 
 ## Setup
 
@@ -27,7 +27,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Set `GEMINI_API_KEY` for Gemini generation and the shared RAGAS judge, and `GROQ_API_KEY` for the second generator. Optional model overrides are `AGRI_GEMINI_MODEL`, `AGRI_GROQ_MODEL`, and `AGRI_EVAL_JUDGE_MODEL`. Both `.env` and `keys.env` are ignored by Git.
+Set `GROQ_API_KEY` for both answer generators and `GEMINI_API_KEY` for the shared RAGAS judge and embeddings. Optional model overrides are `AGRI_QWEN_MODEL`, `AGRI_GROQ_MODEL`, and `AGRI_EVAL_JUDGE_MODEL`. Both `.env` and `keys.env` are ignored by Git.
 
 Run the API from the repository root:
 
@@ -64,12 +64,12 @@ python evaluate_retrieval.py --top-k 5 --fetch-k 20
 Check live generation abstention with the configured provider credentials:
 
 ```bash
-python evaluate_abstention.py --provider gemini
+python evaluate_abstention.py --provider qwen
 ```
 
 The retrieval check uses a small demo set only; it is not a held-out agricultural QA benchmark. Run both checks with model access before deployment.
 
-The UI's **LLM QA** page runs Gemini and Groq against the same retrieved KCC passages and reports generation latency plus RAGAS faithfulness and answer relevance. The unsupported-claim value is clearly labeled as `1 - faithfulness`, a proxy and not a dedicated classifier. The source drawer can run LIME on demand to explain the BGE reranker's score for a selected source. See [docs/llm_evaluation_report.md](docs/llm_evaluation_report.md) for the evaluation protocol and current results status.
+The UI's **LLM QA** page runs Qwen and GPT-OSS on Groq against the same retrieved KCC passages and reports generation latency plus RAGAS faithfulness and answer relevance. The unsupported-claim value is clearly labeled as `1 - faithfulness`, a proxy and not a dedicated classifier. The source drawer can run LIME on demand to explain the BGE reranker's score for a selected source. See [docs/llm_evaluation_report.md](docs/llm_evaluation_report.md) for the evaluation protocol and current results status.
 
 Run a batch comparison over the multilingual smoke set and save per-case output plus language/provider averages:
 

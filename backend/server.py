@@ -36,7 +36,7 @@ class ChatRequest(BaseModel):
     top_k: Optional[int] = 5
     crop: Optional[str] = None
     state: Optional[str] = None
-    llm_provider: Optional[Literal["gemini", "groq"]] = "gemini"
+    llm_provider: Optional[Literal["qwen", "groq"]] = "qwen"
 
 class CompareRequest(BaseModel):
     query: str = Field(min_length=2, max_length=2000)
@@ -53,8 +53,8 @@ def health_check():
         "collection_count": rag.collection_count(),
         "model": rag.embed_model_name,
         "reranker": rag.cross_encoder_name,
-        "llm_model": rag.llm_model_name,
-        "llm_models": {"gemini": rag.llm_model_name, "groq": rag.groq_model_name},
+        "llm_model": rag.qwen_model_name,
+        "llm_models": {"qwen": rag.qwen_model_name, "groq": rag.groq_model_name},
         "evaluation_judge": os.environ.get("AGRI_EVAL_JUDGE_MODEL", "gemini-3.8-flash"),
     }
 

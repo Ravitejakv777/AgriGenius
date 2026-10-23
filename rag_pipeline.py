@@ -22,7 +22,6 @@ load_dotenv("keys.env")
 import chromadb
 import numpy as np
 from google import genai
-from google.genai import types
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.cross_encoder import CrossEncoder
 
@@ -31,13 +30,8 @@ CHROMA_DB_PATH = "./chroma_kcc_db"
 COLLECTION_NAME = "kcc_agri_advisor"
 EMBED_MODEL_NAME = "l3cube-pune/indic-sentence-bert-nli"
 CROSS_ENCODER_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
-_configured_gemini_model = os.environ.get("AGRI_GEMINI_MODEL", "gemini-3-flash-preview").strip()
-# Accept the short alias that may have been configured in a local or hosted
-# environment, while sending the actual Gemini API model ID.
-LLM_MODEL_NAME = {
-    "gemini-3-flash": "gemini-3-flash-preview",
-}.get(_configured_gemini_model, _configured_gemini_model)
-GROQ_MODEL_NAME = os.environ.get("AGRI_GROQ_MODEL", "openai/gpt-oss-20b")
+QWEN_MODEL_NAME = os.environ.get("AGRI_QWEN_MODEL", "qwen/qwen3.8-27b").strip()
+GROQ_MODEL_NAME = os.environ.get("AGRI_GROQ_MODEL", "openai/gpt-oss-20b").strip()
 EVALUATION_JUDGE_MODEL = os.environ.get("AGRI_EVAL_JUDGE_MODEL", "gemini-3.8-flash")
 DEFAULT_TOP_K = 5
 DEFAULT_FETCH_K = 20
@@ -49,7 +43,7 @@ def _groq_client(api_key: str):
         from groq import Groq
     except ImportError as error:
         raise RuntimeError("Groq support is not installed; install the project requirements.") from error
-    return Groq(api_key=api_key)
+    return Groq(api_key=api_key, timeout=30.0)
 
 
 SYSTEM_INSTRUCTION = """You are AgriGenius, a helpful agricultural advisory assistant for farmers in India.
@@ -231,14 +225,14 @@ class AgriGeniusRAG:
         collection_name: str = COLLECTION_NAME,
         embed_model_name: str = EMBED_MODEL_NAME,
         cross_encoder_name: str = CROSS_ENCODER_MODEL_NAME,
-        llm_model_name: str = LLM_MODEL_NAME,
+        qwen_model_name: str = QWEN_MODEL_NAME,
         groq_model_name: str = GROQ_MODEL_NAME,
     ) -> None:
         self.chroma_path = chroma_path
         self.collection_name = collection_name
         self.embed_model_name = embed_model_name
         self.cross_encoder_name = cross_encoder_name
-        self.llm_model_name = llm_model_name
+        self.qwen_model_name = qwen_model_name
         self.groq_model_name = groq_model_name
         self.embedding_model = SentenceTransformer(embed_model_name)
         self.cross_encoder = CrossEncoder(cross_encoder_name)
@@ -382,43 +376,35 @@ Farmer question: {query}
 
 Answer:"""
 
-    def generate_answer(self, query: str, sources: list[RetrievedSource], llm_provider: str = "gemini") -> str:
+    def generate_answer(self, query: str, sources: list[RetrievedSource], llm_provider: str = "qwen") -> str:
         if not sources:
             return "I do not have enough reliable KCC context to answer this question safely."
 
         prompt = self.build_prompt(query, sources)
 
-        if llm_provider == "groq":
+        if llm_provider in ("qwen", "groq"):
             api_key = os.environ.get("GROQ_API_KEY")
             if not api_key:
-                raise RuntimeError("GROQ_API_KEY environment variable is not set for Groq.")
+                raise RuntimeError("GROQ_API_KEY environment variable is not set.")
             client = _groq_client(api_key)
+            model_name = self.qwen_model_name if llm_provider == "qwen" else self.groq_model_name
             try:
-                response = client.chat.completions.create(
-                    model=self.groq_model_name,
-                    messages=[
+                completion_args = {
+                    "model": model_name,
+                    "messages": [
                         {"role": "system", "content": SYSTEM_INSTRUCTION},
                         {"role": "user", "content": prompt},
                     ],
-                    max_completion_tokens=500,
-                    temperature=0.0,
-                    stream=False,
-                )
+                    "max_completion_tokens": 500,
+                    "temperature": 0.0,
+                    "stream": False,
+                }
+                if llm_provider == "qwen":
+                    completion_args["reasoning_effort"] = "none"
+                response = client.chat.completions.create(**completion_args)
                 return response.choices[0].message.content or ""
             except Exception as e:
-                raise RuntimeError(f"Error calling Groq: {e}") from e
-        elif llm_provider == "gemini":
-            api_key = os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
-
-            client = genai.Client(api_key=api_key)
-            response = client.models.generate_content(
-                model=self.llm_model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION, temperature=0.0),
-            )
-            return response.text or ""
+                raise RuntimeError(f"Error calling Groq ({llm_provider}): {e}") from e
         else:
             raise ValueError(f"Unsupported LLM provider: {llm_provider!r}")
 
@@ -475,6 +461,7 @@ Answer:"""
 
     async def compare_models(self, query: str, top_k: int = DEFAULT_TOP_K) -> dict[str, Any]:
         """Run both configured answer models on identical retrieved evidence and score with RAGAS."""
+        import asyncio
         import time
 
         sources = self.retrieve_sources(query, top_k=top_k)
@@ -488,14 +475,17 @@ Answer:"""
             for source in sources
         ]
         model_specs = [
-            ("gemini", self.llm_model_name),
+            ("qwen", self.qwen_model_name),
             ("groq", self.groq_model_name),
         ]
         results: list[dict[str, Any]] = []
         for provider, model_name in model_specs:
             started = time.perf_counter()
             try:
-                answer = self.generate_answer(query, sources, llm_provider=provider)
+                answer = await asyncio.wait_for(
+                    asyncio.to_thread(self.generate_answer, query, sources, provider),
+                    timeout=35.0,
+                )
                 if not answer.strip():
                     raise RuntimeError("The provider returned an empty answer.")
                 results.append({
@@ -507,13 +497,18 @@ Answer:"""
                     "answer_characters": len(answer),
                 })
             except Exception as error:
+                error_message = (
+                    "Generation exceeded the 35-second request limit."
+                    if isinstance(error, asyncio.TimeoutError)
+                    else str(error)
+                )
                 results.append({
                     "provider": provider,
                     "model": model_name,
                     "status": "error",
                     "answer": None,
                     "generation_latency_ms": round((time.perf_counter() - started) * 1000),
-                    "error": str(error),
+                    "error": error_message,
                 })
 
         evaluation_status = "skipped_no_context" if not sources else "skipped_no_successful_generation"
@@ -538,6 +533,7 @@ Answer:"""
                 judge_async_client = AsyncOpenAI(
                     api_key=api_key,
                     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                    timeout=45.0,
                 )
                 judge_llm = llm_factory(
                     judge_model,
@@ -551,24 +547,31 @@ Answer:"""
                 faithfulness_metric = Faithfulness(llm=judge_llm)
                 relevancy_metric = AnswerRelevancy(llm=judge_llm, embeddings=judge_embeddings)
                 contexts = [source.text for source in sources]
-                for item in results:
-                    if item["status"] != "ok":
-                        continue
-                    faithfulness_result = await faithfulness_metric.ascore(
-                        user_input=query, response=item["answer"], retrieved_contexts=contexts
-                    )
-                    answer_relevancy_result = await relevancy_metric.ascore(
-                        user_input=query, response=item["answer"]
-                    )
-                    faithfulness_raw = faithfulness_result.value
-                    answer_relevancy_raw = answer_relevancy_result.value
-                    faithfulness = float(faithfulness_raw) if faithfulness_raw is not None and np.isfinite(faithfulness_raw) else None
-                    answer_relevancy = float(answer_relevancy_raw) if answer_relevancy_raw is not None and np.isfinite(answer_relevancy_raw) else None
-                    item["metrics"] = {
-                        "faithfulness": faithfulness,
-                        "answer_relevancy": answer_relevancy,
-                        "unsupported_claim_rate_proxy": 1.0 - faithfulness if faithfulness is not None else None,
-                    }
+
+                async def score_successful_models() -> None:
+                    for item in results:
+                        if item["status"] != "ok":
+                            continue
+                        faithfulness_result = await faithfulness_metric.ascore(
+                            user_input=query, response=item["answer"], retrieved_contexts=contexts
+                        )
+                        answer_relevancy_result = await relevancy_metric.ascore(
+                            user_input=query, response=item["answer"]
+                        )
+                        faithfulness_raw = faithfulness_result.value
+                        answer_relevancy_raw = answer_relevancy_result.value
+                        faithfulness = float(faithfulness_raw) if faithfulness_raw is not None and np.isfinite(faithfulness_raw) else None
+                        answer_relevancy = float(answer_relevancy_raw) if answer_relevancy_raw is not None and np.isfinite(answer_relevancy_raw) else None
+                        item["metrics"] = {
+                            "faithfulness": faithfulness,
+                            "answer_relevancy": answer_relevancy,
+                            "unsupported_claim_rate_proxy": 1.0 - faithfulness if faithfulness is not None else None,
+                        }
+
+                try:
+                    await asyncio.wait_for(score_successful_models(), timeout=75.0)
+                except asyncio.TimeoutError as error:
+                    raise TimeoutError("RAGAS scoring exceeded the 75-second limit.") from error
                 evaluation_status = "ok"
             except Exception as error:
                 evaluation_status = "error"
@@ -603,7 +606,7 @@ Answer:"""
         fetch_k: int = DEFAULT_FETCH_K,
         where: dict[str, Any] | None = None,
         generate: bool = True,
-        llm_provider: str = "gemini",
+        llm_provider: str = "qwen",
     ) -> dict[str, Any]:
         sources = self.retrieve_sources(query, top_k=top_k, fetch_k=fetch_k, where=where)
         answer = self.generate_answer(query, sources, llm_provider) if generate else ""
@@ -615,52 +618,39 @@ Answer:"""
             "collection_count": self.collection_count(),
         }
 
-    def generate_answer_stream(self, query: str, sources: list[RetrievedSource], llm_provider: str = "gemini"):
+    def generate_answer_stream(self, query: str, sources: list[RetrievedSource], llm_provider: str = "qwen"):
         if not sources:
             yield "I do not have enough reliable KCC context to answer this question safely."
             return
 
         prompt = self.build_prompt(query, sources)
 
-        if llm_provider == "groq":
-            yield from self._generate_stream_groq(prompt)
-        elif llm_provider == "gemini":
-            yield from self._generate_stream_gemini(prompt)
+        if llm_provider in ("qwen", "groq"):
+            model_name = self.qwen_model_name if llm_provider == "qwen" else self.groq_model_name
+            yield from self._generate_stream_groq(prompt, model_name)
         else:
             raise ValueError(f"Unsupported LLM provider: {llm_provider!r}")
 
-    def _generate_stream_gemini(self, prompt: str):
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
-
-        client = genai.Client(api_key=api_key)
-        response_stream = client.models.generate_content_stream(
-            model=self.llm_model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION, temperature=0.0),
-        )
-        for chunk in response_stream:
-            if chunk.text:
-                yield chunk.text
-
-    def _generate_stream_groq(self, prompt: str):
+    def _generate_stream_groq(self, prompt: str, model_name: str):
         api_key = os.environ.get("GROQ_API_KEY")
         if not api_key:
-            raise RuntimeError("GROQ_API_KEY environment variable is not set for Groq.")
+            raise RuntimeError("GROQ_API_KEY environment variable is not set.")
 
         client = _groq_client(api_key)
         try:
-            stream = client.chat.completions.create(
-                model=self.groq_model_name,
-                messages=[
+            completion_args = {
+                "model": model_name,
+                "messages": [
                     {"role": "system", "content": SYSTEM_INSTRUCTION},
                     {"role": "user", "content": prompt},
                 ],
-                max_completion_tokens=500,
-                temperature=0.0,
-                stream=True,
-            )
+                "max_completion_tokens": 500,
+                "temperature": 0.0,
+                "stream": True,
+            }
+            if model_name == self.qwen_model_name:
+                completion_args["reasoning_effort"] = "none"
+            stream = client.chat.completions.create(**completion_args)
             for chunk in stream:
                 if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
@@ -673,7 +663,7 @@ Answer:"""
         top_k: int = DEFAULT_TOP_K,
         fetch_k: int = DEFAULT_FETCH_K,
         where: dict[str, Any] | None = None,
-        llm_provider: str = "gemini",
+        llm_provider: str = "qwen",
     ):
         sources = self.retrieve_sources(query, top_k=top_k, fetch_k=fetch_k, where=where)
         # First yield the sources so the UI can show them immediately

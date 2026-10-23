@@ -42,13 +42,13 @@ export function StatusPanel() {
         
         <div className="space-y-2 text-sm">
           <div className="flex justify-between items-center gap-2">
-            <span className="text-slate-500 dark:text-neutral-400">Gemini generator</span>
-            <span className="font-medium text-slate-700 dark:text-neutral-200 text-right max-w-[170px] truncate" title={health?.llm_models?.gemini || health?.llm_model}>
-              {health?.llm_models?.gemini || health?.llm_model || 'Unavailable'}
+            <span className="text-slate-500 dark:text-neutral-400">Qwen generator (Groq)</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200 text-right max-w-[170px] truncate" title={health?.llm_models?.qwen || health?.llm_model}>
+              {health?.llm_models?.qwen || health?.llm_model || 'Unavailable'}
             </span>
           </div>
           <div className="flex justify-between items-center gap-2">
-            <span className="text-slate-500 dark:text-neutral-400">Groq generator</span>
+            <span className="text-slate-500 dark:text-neutral-400">GPT-OSS generator (Groq)</span>
             <span className="font-medium text-slate-700 dark:text-neutral-200 text-right max-w-[170px] truncate" title={health?.llm_models?.groq}>
               {health?.llm_models?.groq || 'Unavailable'}
             </span>
