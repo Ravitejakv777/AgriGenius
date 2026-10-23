@@ -10,4 +10,7 @@ fastapi
 uvicorn
 sse-starlette
 lime>=0.2.0.1
-ragas>=0.4,<0.5
+ragas @ git+https://github.com/vibrantlabsai/ragas.git@735726d5c29e072b5e4e877759d254f78e0f7c73
+langchain-google-vertexai==3.2.3
+instructor[google-genai]>=1.17,<2
+groq>=1,<2

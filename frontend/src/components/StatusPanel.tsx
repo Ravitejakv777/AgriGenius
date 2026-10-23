@@ -48,9 +48,9 @@ export function StatusPanel() {
             </span>
           </div>
           <div className="flex justify-between items-center gap-2">
-            <span className="text-slate-500 dark:text-neutral-400">Llama generator</span>
-            <span className="font-medium text-slate-700 dark:text-neutral-200 text-right max-w-[170px] truncate" title={health?.llm_models?.llama}>
-              {health?.llm_models?.llama || 'Unavailable'}
+            <span className="text-slate-500 dark:text-neutral-400">Groq generator</span>
+            <span className="font-medium text-slate-700 dark:text-neutral-200 text-right max-w-[170px] truncate" title={health?.llm_models?.groq}>
+              {health?.llm_models?.groq || 'Unavailable'}
             </span>
           </div>
           <div className="flex justify-between items-center gap-2">

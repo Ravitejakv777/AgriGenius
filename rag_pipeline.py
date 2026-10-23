@@ -25,7 +25,6 @@ from google import genai
 from google.genai import types
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.cross_encoder import CrossEncoder
-from huggingface_hub import InferenceClient
 
 
 CHROMA_DB_PATH = "./chroma_kcc_db"
@@ -33,11 +32,19 @@ COLLECTION_NAME = "kcc_agri_advisor"
 EMBED_MODEL_NAME = "l3cube-pune/indic-sentence-bert-nli"
 CROSS_ENCODER_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
 LLM_MODEL_NAME = os.environ.get("AGRI_GEMINI_MODEL", "gemini-3.6-flash")
-LLAMA_MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+GROQ_MODEL_NAME = os.environ.get("AGRI_GROQ_MODEL", "openai/gpt-oss-20b")
 EVALUATION_JUDGE_MODEL = os.environ.get("AGRI_EVAL_JUDGE_MODEL", "gemini-3.8-flash")
 DEFAULT_TOP_K = 5
 DEFAULT_FETCH_K = 20
 MMR_LAMBDA = 0.72
+
+
+def _groq_client(api_key: str):
+    try:
+        from groq import Groq
+    except ImportError as error:
+        raise RuntimeError("Groq support is not installed; install the project requirements.") from error
+    return Groq(api_key=api_key)
 
 
 SYSTEM_INSTRUCTION = """You are AgriGenius, a helpful agricultural advisory assistant for farmers in India.
@@ -220,14 +227,14 @@ class AgriGeniusRAG:
         embed_model_name: str = EMBED_MODEL_NAME,
         cross_encoder_name: str = CROSS_ENCODER_MODEL_NAME,
         llm_model_name: str = LLM_MODEL_NAME,
-        llama_model_name: str = LLAMA_MODEL_NAME,
+        groq_model_name: str = GROQ_MODEL_NAME,
     ) -> None:
         self.chroma_path = chroma_path
         self.collection_name = collection_name
         self.embed_model_name = embed_model_name
         self.cross_encoder_name = cross_encoder_name
         self.llm_model_name = llm_model_name
-        self.llama_model_name = llama_model_name
+        self.groq_model_name = groq_model_name
         self.embedding_model = SentenceTransformer(embed_model_name)
         self.cross_encoder = CrossEncoder(cross_encoder_name)
         self.chroma_client = chromadb.PersistentClient(path=chroma_path)
@@ -376,20 +383,25 @@ Answer:"""
 
         prompt = self.build_prompt(query, sources)
 
-        if llm_provider == "llama":
-            hf_token = os.environ.get("HF_TOKEN")
-            if not hf_token:
-                raise RuntimeError("HF_TOKEN environment variable is not set for Llama 3 access.")
-            client = InferenceClient(model=self.llama_model_name, token=hf_token)
-            messages = [
-                {"role": "system", "content": SYSTEM_INSTRUCTION},
-                {"role": "user", "content": prompt}
-            ]
+        if llm_provider == "groq":
+            api_key = os.environ.get("GROQ_API_KEY")
+            if not api_key:
+                raise RuntimeError("GROQ_API_KEY environment variable is not set for Groq.")
+            client = _groq_client(api_key)
             try:
-                response = client.chat_completion(messages=messages, stream=False, max_tokens=500, temperature=0.0)
+                response = client.chat.completions.create(
+                    model=self.groq_model_name,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_INSTRUCTION},
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_completion_tokens=500,
+                    temperature=0.0,
+                    stream=False,
+                )
                 return response.choices[0].message.content or ""
             except Exception as e:
-                raise RuntimeError(f"Error calling Llama 3: {e}") from e
+                raise RuntimeError(f"Error calling Groq: {e}") from e
         elif llm_provider == "gemini":
             api_key = os.environ.get("GEMINI_API_KEY")
             if not api_key:
@@ -472,7 +484,7 @@ Answer:"""
         ]
         model_specs = [
             ("gemini", self.llm_model_name),
-            ("llama", self.llama_model_name),
+            ("groq", self.groq_model_name),
         ]
         results: list[dict[str, Any]] = []
         for provider, model_name in model_specs:
@@ -578,8 +590,8 @@ Answer:"""
 
         prompt = self.build_prompt(query, sources)
 
-        if llm_provider == "llama":
-            yield from self._generate_stream_llama(prompt)
+        if llm_provider == "groq":
+            yield from self._generate_stream_groq(prompt)
         elif llm_provider == "gemini":
             yield from self._generate_stream_gemini(prompt)
         else:
@@ -600,23 +612,28 @@ Answer:"""
             if chunk.text:
                 yield chunk.text
 
-    def _generate_stream_llama(self, prompt: str):
-        hf_token = os.environ.get("HF_TOKEN")
-        if not hf_token:
-            raise RuntimeError("HF_TOKEN environment variable is not set for Llama 3 access.")
-            
-        client = InferenceClient(model=self.llama_model_name, token=hf_token)
-        messages = [
-            {"role": "system", "content": SYSTEM_INSTRUCTION},
-            {"role": "user", "content": prompt}
-        ]
+    def _generate_stream_groq(self, prompt: str):
+        api_key = os.environ.get("GROQ_API_KEY")
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY environment variable is not set for Groq.")
+
+        client = _groq_client(api_key)
         try:
-            stream = client.chat_completion(messages=messages, stream=True, max_tokens=500, temperature=0.0)
+            stream = client.chat.completions.create(
+                model=self.groq_model_name,
+                messages=[
+                    {"role": "system", "content": SYSTEM_INSTRUCTION},
+                    {"role": "user", "content": prompt},
+                ],
+                max_completion_tokens=500,
+                temperature=0.0,
+                stream=True,
+            )
             for chunk in stream:
                 if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
         except Exception as e:
-            raise RuntimeError(f"Error calling Llama 3: {e}") from e
+            raise RuntimeError(f"Error calling Groq: {e}") from e
 
     def answer_query_stream(
         self,

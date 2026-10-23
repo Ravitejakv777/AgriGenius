@@ -31,7 +31,7 @@ export type ChatResponse = {
 };
 
 export type ModelComparisonResult = {
-  provider: 'gemini' | 'llama';
+  provider: 'gemini' | 'groq';
   model: string;
   status: 'ok' | 'error';
   answer: string | null;
@@ -77,7 +77,7 @@ export type HealthResponse = {
   model?: string;
   reranker?: string;
   llm_model?: string;
-  llm_models?: { gemini?: string; llama?: string };
+  llm_models?: { gemini?: string; groq?: string };
   evaluation_judge?: string;
 };
 

@@ -11,7 +11,7 @@ The RAG pipeline uses `l3cube-pune/indic-sentence-bert-nli` for normalized 768-d
 | Role | Configured model | Function |
 | --- | --- | --- |
 | Generator A | Gemini 3.6 Flash (`AGRI_GEMINI_MODEL`) | Produces an answer from the selected KCC passages |
-| Generator B | Meta Llama 3.1 8B Instruct (`meta-llama/Meta-Llama-3.1-8B-Instruct`) | Produces a second answer from the exact same passages |
+| Generator B | Groq GPT-OSS 20B (`openai/gpt-oss-20b`, `AGRI_GROQ_MODEL`) | Produces a second answer from the exact same passages |
 | Evaluation judge | Gemini 3.8 Flash by default (`AGRI_EVAL_JUDGE_MODEL`) | Scores both outputs with RAGAS using one shared judge configuration |
 
 The Google model registry currently identifies Gemini 3.5 Flash as deprecated and says requests are routed to Gemini 3.6 Flash, so the configured direct model ID was moved to `gemini-3.6-flash`. [Google Gemini model reference](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash.md)
@@ -51,20 +51,20 @@ The evaluation UI contains starter prompts in Hindi, Telugu, and English, and ac
 3. Cases where the retrieved passages are irrelevant or insufficient, including the Mars/zero-gravity unsupported-query check in `evaluate_abstention.py`.
 4. Multiple questions per language, reviewed for meaning and equivalent difficulty across translations.
 
-For the current UI, run `/evaluation` for each test question with `GEMINI_API_KEY`, Hugging Face `HF_TOKEN` and inference access, downloaded Indic/BGE models, and RAGAS dependencies installed. For a batch run, use `python evaluate_llms.py --query-file <reviewed-cases.json> --output llm_evaluation_results.json`; it stores per-case outputs and provider/language averages. Record the model IDs, date, language, retrieved passage ranks, provider failures, latency, RAGAS outputs, and judge model. A failed provider or judge is reported as unavailable; the UI does not invent replacement responses or scores.
+For the current UI, run `/evaluation` for each test question with `GEMINI_API_KEY`, `GROQ_API_KEY`, downloaded Indic/BGE models, and compatible RAGAS/Instructor dependencies installed. For a batch run, use `python evaluate_llms.py --query-file <reviewed-cases.json> --output llm_evaluation_results.json`; it stores per-case outputs and provider/language averages. Record the model IDs, date, language, retrieved passage ranks, provider failures, latency, RAGAS outputs, and judge model. A failed provider or judge is reported as unavailable; the UI does not invent replacement responses or scores.
 
 ## Results status
 
 | Language / check | Generator comparison | Faithfulness / relevance | Status |
 | --- | --- | --- | --- |
-| Hindi | Gemini 3.6 Flash vs Llama 3.1 8B | Pending live RAGAS judge run | Not run in this report |
-| Telugu | Gemini 3.6 Flash vs Llama 3.1 8B | Pending live RAGAS judge run | Not run in this report |
-| English | Gemini 3.6 Flash vs Llama 3.1 8B | Pending live RAGAS judge run | Not run in this report |
+| Hindi | Gemini 3.6 Flash vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
+| Telugu | Gemini 3.6 Flash vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
+| English | Gemini 3.6 Flash vs Groq GPT-OSS 20B | Pending live RAGAS judge run | Not run in this report |
 | Unsupported / insufficient evidence | Run each configured generator and inspect abstention | Context metrics are skipped when no KCC sources are retrieved | Pending live provider access |
 | LIME explanation review | Inspect positive/negative query token weights against ranked passage | Qualitative review required per script | Pending live model access |
 
-No numerical LLM quality results are reported here because the online retrieval/abstention retries could not load Hugging Face assets in the current network environment, and the active virtual environment does not yet have RAGAS installed. The LIME algorithm was exercised against a deterministic mock scorer in English, Hindi, and Telugu; that verifies the perturbation/token path only, not AgriGenius model attributions. The local index integrity check is independent of these live model-quality checks.
+No numerical LLM quality results are reported here. A Gemini answer was generated in a live smoke run, but RAGAS scoring failed because the environment's Instructor package lacked `from_genai`; a previous Hugging Face-hosted Llama run also failed after its inference credits were exhausted. The implementation now targets Groq for generator B, and RAGAS/Instructor dependencies are pinned for the Gemini adapter. The LIME algorithm was exercised against a deterministic mock scorer in English, Hindi, and Telugu; that verifies the perturbation/token path only, not AgriGenius model attributions. The local index integrity check is independent of these live model-quality checks.
 
 ## Readiness decision
 
-The required UI and backend paths for LIME, dual-provider execution, latency measurement, RAGAS faithfulness, answer relevance, and explicit abstention/unsupported-claim reporting are implemented. Proceed with further prototype upgrades, but treat model-quality sign-off as pending until both providers run successfully on the reviewed multilingual set and the RAGAS/human-review results are recorded. This report does not certify TRL 6 or farmer-facing readiness.
+The required UI and backend paths for LIME, Gemini/Groq dual-provider execution, latency measurement, RAGAS faithfulness, answer relevance, and explicit abstention/unsupported-claim reporting are implemented. Treat model-quality sign-off as pending until both providers run successfully on the reviewed multilingual set and RAGAS/human-review results are recorded. This report does not certify TRL 6 or farmer-facing readiness.

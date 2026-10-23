@@ -19,7 +19,7 @@ ABSTENTION_MARKERS = (
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--provider", choices=("gemini", "llama"), default="gemini")
+    parser.add_argument("--provider", choices=("gemini", "groq"), default="gemini")
     args = parser.parse_args()
 
     rag = AgriGeniusRAG()

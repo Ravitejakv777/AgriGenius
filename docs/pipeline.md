@@ -26,7 +26,7 @@ Hindi / Telugu / English farmer question
   -> remove likely question-only rows and near duplicates
   -> BAAI/bge-reranker-v2-m3 cross-encoder reranking
   -> top-k KCC passages and metadata
-  -> Gemini 3.6 Flash or Hugging Face Llama 3.1 8B generation
+  -> Gemini 3.6 Flash or Groq openai/gpt-oss-20b generation
   -> SSE answer chunks with source metadata
 ```
 
@@ -49,6 +49,6 @@ The prompt requires answers to stay within the retrieved KCC context, cite sourc
 
 Local record counts, sampled corpus/index alignment, Chroma cosine configuration, provenance metadata, and the frontend production build have been checked. Retrieval quality across languages, abstention under live generation, provider behavior, and deployment remain pending an online end-to-end validation run. The small demo query set is a smoke check, not a benchmark.
 
-Install `lime` for the source-card explanations and `ragas` for model quality scores. RAGAS scoring uses `GEMINI_API_KEY`, `AGRI_EVAL_JUDGE_MODEL` (default `gemini-3.8-flash`), and Google `gemini-embedding-001` embeddings. If generation or judge credentials/network access are absent, output/status shows the failure or pending score; no score is substituted. The displayed unsupported-claim rate is `1 - faithfulness`, a proxy rather than a separate hallucination classifier.
+Install `lime` for source-card explanations, RAGAS for model quality scores, `instructor[google-genai]` for the Google judge adapter, and `groq` for the second generator. RAGAS scoring uses `GEMINI_API_KEY`, `AGRI_EVAL_JUDGE_MODEL` (default `gemini-3.8-flash`), and Google `gemini-embedding-001` embeddings. If generation or judge credentials/network access are absent, output/status shows the failure or pending score; no score is substituted. The displayed unsupported-claim rate is `1 - faithfulness`, a proxy rather than a separate hallucination classifier.
 
 Run `python evaluate_retrieval.py --top-k 5 --fetch-k 20` for per-language crop/category hit rates and `python evaluate_abstention.py --provider gemini` for the unsupported Mars cultivation prompt. These require the embedding and reranker models; the abstention check also requires provider credentials.

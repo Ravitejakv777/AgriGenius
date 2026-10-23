@@ -79,7 +79,7 @@ def main() -> int:
 
     output = {
         "query_file": str(Path(args.query_file)),
-        "model_ids": {"gemini": rag.llm_model_name, "llama": rag.llama_model_name},
+        "model_ids": {"gemini": rag.llm_model_name, "groq": rag.groq_model_name},
         "evaluation_judge": comparison["evaluation"]["judge_model"] if results else None,
         "results": results,
         "summary_by_language_and_provider": summarize(results),

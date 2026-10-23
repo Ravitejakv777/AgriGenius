@@ -93,7 +93,7 @@ export function EvaluationPage() {
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1 text-[11px] font-bold text-emerald-800 dark:text-emerald-200"><BarChart3 className="h-3.5 w-3.5" /> Live two-model comparison</div>
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">LLM testing and quality</h1>
-          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">Both configured generators receive the same retrieved KCC passages. This page measures generation latency and runs RAGAS faithfulness and answer relevance with one shared Gemini judge.</p>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">Gemini and Groq receive the same retrieved KCC passages. This page measures generation latency and runs RAGAS faithfulness and answer relevance with one shared Gemini judge.</p>
         </div>
 
         <section className="mt-7 rounded-2xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-sm sm:p-6">

@@ -5,7 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 import json
 from sse_starlette.sse import EventSourceResponse
 
@@ -36,7 +36,7 @@ class ChatRequest(BaseModel):
     top_k: Optional[int] = 5
     crop: Optional[str] = None
     state: Optional[str] = None
-    llm_provider: Optional[str] = "gemini"
+    llm_provider: Optional[Literal["gemini", "groq"]] = "gemini"
 
 class CompareRequest(BaseModel):
     query: str = Field(min_length=2, max_length=2000)
@@ -54,7 +54,7 @@ def health_check():
         "model": rag.embed_model_name,
         "reranker": rag.cross_encoder_name,
         "llm_model": rag.llm_model_name,
-        "llm_models": {"gemini": rag.llm_model_name, "llama": rag.llama_model_name},
+        "llm_models": {"gemini": rag.llm_model_name, "groq": rag.groq_model_name},
         "evaluation_judge": os.environ.get("AGRI_EVAL_JUDGE_MODEL", "gemini-3.8-flash"),
     }
 
