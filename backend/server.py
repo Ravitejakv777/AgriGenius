@@ -13,7 +13,7 @@ if os.path.exists(user_site) and user_site not in sys.path:
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 import json
 import hashlib
 import requests
@@ -76,7 +76,7 @@ class ChatRequest(BaseModel):
     top_k: Optional[int] = 5
     crop: Optional[str] = None
     state: Optional[str] = None
-    llm_provider: Optional[str] = "gemini"
+    llm_provider: Optional[Literal["qwen", "groq"]] = "qwen"
 
 class CompareRequest(BaseModel):
     query: str = Field(min_length=2, max_length=2000)
@@ -93,9 +93,9 @@ def health_check():
         "collection_count": rag.collection_count(),
         "model": rag.embed_model_name,
         "reranker": rag.cross_encoder_name,
-        "llm_model": rag.llm_model_name,
-        "llm_models": {"gemini": rag.llm_model_name, "llama": rag.llama_model_name},
-        "evaluation_judge": os.environ.get("AGRI_EVAL_JUDGE_MODEL", "gemini-3.8-flash"),
+        "llm_model": rag.qwen_model_name,
+        "llm_models": {"qwen": rag.qwen_model_name, "groq": rag.groq_model_name},
+        "evaluation_method": "deterministic_unicode_token_overlap_v1",
     }
 
 @app.post("/api/chat")
@@ -135,9 +135,9 @@ def chat(request: ChatRequest):
     return result
 
 @app.post("/api/llm/compare")
-def compare_llms(request: CompareRequest):
+async def compare_llms(request: CompareRequest):
     """Compare both configured generators against the same retrieved context."""
-    return rag.compare_models(request.query, top_k=request.top_k)
+    return await rag.compare_models(request.query, top_k=request.top_k)
 
 @app.post("/api/explain")
 def explain_source(request: ExplainRequest):
@@ -184,6 +184,8 @@ def chat_stream(request: ChatRequest):
                     yield json.dumps({"type": "metadata", "sources": sources})
                 elif chunk["type"] == "chunk":
                     yield json.dumps({"type": "chunk", "content": chunk["content"]})
+                elif chunk["type"] in {"model", "error"}:
+                    yield json.dumps(chunk)
         except Exception as error:
             yield json.dumps({"type": "error", "message": str(error)})
     

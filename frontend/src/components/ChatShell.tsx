@@ -95,6 +95,11 @@ export function ChatShell() {
             )
           );
         },
+        (generation) => {
+          setMessages(prev => prev.map(msg => msg.id === assistantId
+            ? { ...msg, responseDetails: msg.responseDetails ? { ...msg.responseDetails, generation } : undefined }
+            : msg));
+        },
         (error) => {
           console.error('Failed to send message:', error);
           setMessages(prev => 

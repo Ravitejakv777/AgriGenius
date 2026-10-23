@@ -21,23 +21,61 @@ load_dotenv("keys.env")
 
 import chromadb
 import numpy as np
-from google import genai
-from google.genai import types
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.cross_encoder import CrossEncoder
-from huggingface_hub import InferenceClient
 
 
 CHROMA_DB_PATH = "./chroma_kcc_db"
 COLLECTION_NAME = "kcc_agri_advisor"
 EMBED_MODEL_NAME = "l3cube-pune/indic-sentence-bert-nli"
 CROSS_ENCODER_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
-LLM_MODEL_NAME = os.environ.get("AGRI_GEMINI_MODEL", "gemini-3.6-flash")
-LLAMA_MODEL_NAME = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-EVALUATION_JUDGE_MODEL = os.environ.get("AGRI_EVAL_JUDGE_MODEL", "gemini-3.8-flash")
+QWEN_MODEL_NAME = os.environ.get("AGRI_QWEN_MODEL", "qwen/qwen3.8-27b").strip()
+GROQ_MODEL_NAME = os.environ.get("AGRI_GROQ_MODEL", "openai/gpt-oss-20b").strip()
 DEFAULT_TOP_K = 5
 DEFAULT_FETCH_K = 20
 MMR_LAMBDA = 0.72
+EVALUATION_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "how", "in", "is", "it",
+    "of", "on", "or", "that", "the", "this", "to", "was", "what", "when", "where", "which", "with",
+    "क्या", "कैसे", "कब", "के", "की", "को", "का", "में", "से", "और", "है", "हैं", "कर", "पर",
+    "ఏమి", "ఎలా", "ఎప్పుడు", "కు", "కి", "లో", "తో", "మరియు", "అని", "ఉంది", "ఉన్నాయి",
+}
+EVALUATION_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?।॥])\s+|\n+")
+
+
+def local_overlap_scores(query: str, answer: str, contexts: list[str]) -> dict[str, float]:
+    """Return deterministic Unicode token-coverage heuristics, not semantic judgments."""
+
+    def tokens(text: str) -> set[str]:
+        text = re.sub(r"\[\s*source\s+\d+\s*\]", " ", text, flags=re.IGNORECASE)
+        return {
+            token.casefold()
+            for token in re.findall(r"[^\W_]+", text, flags=re.UNICODE)
+            if token.casefold() not in EVALUATION_STOPWORDS
+        }
+
+    answer_sentences = [sentence.strip() for sentence in EVALUATION_SENTENCE_SPLIT_RE.split(answer) if sentence.strip()]
+    context_tokens = set().union(*(tokens(context) for context in contexts)) if contexts else set()
+    sentence_coverages = []
+    for sentence in answer_sentences:
+        answer_tokens = tokens(sentence)
+        if answer_tokens:
+            sentence_coverages.append(len(answer_tokens & context_tokens) / len(answer_tokens))
+
+    query_tokens = tokens(query)
+    answer_tokens = tokens(answer)
+    return {
+        "evidence_token_coverage": sum(sentence_coverages) / len(sentence_coverages) if sentence_coverages else 0.0,
+        "question_token_coverage": len(query_tokens & answer_tokens) / len(query_tokens) if query_tokens else 0.0,
+    }
+
+
+def _groq_client(api_key: str):
+    try:
+        from groq import Groq
+    except ImportError as error:
+        raise RuntimeError("Groq support is not installed; install the project requirements.") from error
+    return Groq(api_key=api_key, timeout=30.0)
 
 
 SYSTEM_INSTRUCTION = """You are AgriGenius, a helpful agricultural advisory assistant for farmers in India.
@@ -219,15 +257,15 @@ class AgriGeniusRAG:
         collection_name: str = COLLECTION_NAME,
         embed_model_name: str = EMBED_MODEL_NAME,
         cross_encoder_name: str = CROSS_ENCODER_MODEL_NAME,
-        llm_model_name: str = LLM_MODEL_NAME,
-        llama_model_name: str = LLAMA_MODEL_NAME,
+        qwen_model_name: str = QWEN_MODEL_NAME,
+        groq_model_name: str = GROQ_MODEL_NAME,
     ) -> None:
         self.chroma_path = chroma_path
         self.collection_name = collection_name
         self.embed_model_name = embed_model_name
         self.cross_encoder_name = cross_encoder_name
-        self.llm_model_name = llm_model_name
-        self.llama_model_name = llama_model_name
+        self.qwen_model_name = qwen_model_name
+        self.groq_model_name = groq_model_name
         self.embedding_model = SentenceTransformer(embed_model_name)
         self.cross_encoder = CrossEncoder(cross_encoder_name)
         self.chroma_client = chromadb.PersistentClient(path=chroma_path)
@@ -370,38 +408,35 @@ Farmer question: {query}
 
 Answer:"""
 
-    def generate_answer(self, query: str, sources: list[RetrievedSource], llm_provider: str = "gemini") -> str:
+    def generate_answer(self, query: str, sources: list[RetrievedSource], llm_provider: str = "qwen") -> str:
         if not sources:
             return "I do not have enough reliable KCC context to answer this question safely."
 
         prompt = self.build_prompt(query, sources)
 
-        if llm_provider == "llama":
-            hf_token = os.environ.get("HF_TOKEN")
-            if not hf_token:
-                raise RuntimeError("HF_TOKEN environment variable is not set for Llama 3 access.")
-            client = InferenceClient(model=self.llama_model_name, token=hf_token)
-            messages = [
-                {"role": "system", "content": SYSTEM_INSTRUCTION},
-                {"role": "user", "content": prompt}
-            ]
+        if llm_provider in ("qwen", "groq"):
+            api_key = os.environ.get("GROQ_API_KEY")
+            if not api_key:
+                raise RuntimeError("GROQ_API_KEY environment variable is not set.")
+            client = _groq_client(api_key)
+            model_name = self.qwen_model_name if llm_provider == "qwen" else self.groq_model_name
             try:
-                response = client.chat_completion(messages=messages, stream=False, max_tokens=500, temperature=0.0)
+                completion_args = {
+                    "model": model_name,
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_INSTRUCTION},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "max_completion_tokens": 500,
+                    "temperature": 0.0,
+                    "stream": False,
+                }
+                if llm_provider == "qwen":
+                    completion_args["reasoning_effort"] = "none"
+                response = client.chat.completions.create(**completion_args)
                 return response.choices[0].message.content or ""
             except Exception as e:
-                raise RuntimeError(f"Error calling Llama 3: {e}") from e
-        elif llm_provider == "gemini":
-            api_key = os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
-
-            client = genai.Client(api_key=api_key)
-            response = client.models.generate_content(
-                model=self.llm_model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION, temperature=0.0),
-            )
-            return response.text or ""
+                raise RuntimeError(f"Error calling Groq ({llm_provider}): {e}") from e
         else:
             raise ValueError(f"Unsupported LLM provider: {llm_provider!r}")
 
@@ -456,8 +491,9 @@ Answer:"""
             "note": "Positive weights raised the local relevance prediction; negative weights lowered it. This explains the reranker score, not the generated answer's factual correctness.",
         }
 
-    def compare_models(self, query: str, top_k: int = DEFAULT_TOP_K) -> dict[str, Any]:
-        """Run both configured answer models on identical retrieved evidence and score with RAGAS."""
+    async def compare_models(self, query: str, top_k: int = DEFAULT_TOP_K) -> dict[str, Any]:
+        """Run both configured answer models on identical evidence and score locally."""
+        import asyncio
         import time
 
         sources = self.retrieve_sources(query, top_k=top_k)
@@ -471,14 +507,17 @@ Answer:"""
             for source in sources
         ]
         model_specs = [
-            ("gemini", self.llm_model_name),
-            ("llama", self.llama_model_name),
+            ("qwen", self.qwen_model_name),
+            ("groq", self.groq_model_name),
         ]
         results: list[dict[str, Any]] = []
         for provider, model_name in model_specs:
             started = time.perf_counter()
             try:
-                answer = self.generate_answer(query, sources, llm_provider=provider)
+                answer = await asyncio.wait_for(
+                    asyncio.to_thread(self.generate_answer, query, sources, provider),
+                    timeout=35.0,
+                )
                 if not answer.strip():
                     raise RuntimeError("The provider returned an empty answer.")
                 results.append({
@@ -490,54 +529,30 @@ Answer:"""
                     "answer_characters": len(answer),
                 })
             except Exception as error:
+                error_message = (
+                    "Generation exceeded the 35-second request limit."
+                    if isinstance(error, asyncio.TimeoutError)
+                    else str(error)
+                )
                 results.append({
                     "provider": provider,
                     "model": model_name,
                     "status": "error",
                     "answer": None,
                     "generation_latency_ms": round((time.perf_counter() - started) * 1000),
-                    "error": str(error),
+                    "error": error_message,
                 })
 
         evaluation_status = "skipped_no_context" if not sources else "skipped_no_successful_generation"
-        judge_model = EVALUATION_JUDGE_MODEL
-        if sources and any(item["status"] == "ok" for item in results):
-            try:
-                from ragas.embeddings import GoogleEmbeddings
-                from ragas.llms import llm_factory
-                from ragas.metrics.collections import AnswerRelevancy, Faithfulness
-
-                api_key = os.environ.get("GEMINI_API_KEY")
-                if not api_key:
-                    raise RuntimeError("GEMINI_API_KEY is required for the RAGAS judge.")
-                judge_client = genai.Client(api_key=api_key)
-                judge_llm = llm_factory(judge_model, provider="google", client=judge_client, temperature=0.0)
-                judge_embeddings = GoogleEmbeddings(client=judge_client, model="gemini-embedding-001")
-                faithfulness_metric = Faithfulness(llm=judge_llm)
-                relevancy_metric = AnswerRelevancy(llm=judge_llm, embeddings=judge_embeddings)
-                contexts = [source.text for source in sources]
-                for item in results:
-                    if item["status"] != "ok":
-                        continue
-                    faithfulness_raw = faithfulness_metric.score(
-                        user_input=query, response=item["answer"], retrieved_contexts=contexts
-                    ).value
-                    answer_relevancy_raw = relevancy_metric.score(
-                        user_input=query, response=item["answer"]
-                    ).value
-                    faithfulness = float(faithfulness_raw) if faithfulness_raw is not None and np.isfinite(faithfulness_raw) else None
-                    answer_relevancy = float(answer_relevancy_raw) if answer_relevancy_raw is not None and np.isfinite(answer_relevancy_raw) else None
-                    item["metrics"] = {
-                        "faithfulness": faithfulness,
-                        "answer_relevancy": answer_relevancy,
-                        "unsupported_claim_rate_proxy": 1.0 - faithfulness if faithfulness is not None else None,
-                    }
-                evaluation_status = "ok"
-            except Exception as error:
-                evaluation_status = "error"
-                for item in results:
-                    if item["status"] == "ok":
-                        item["evaluation_error"] = str(error)
+        contexts = [source.text for source in sources]
+        for item in results:
+            if item["status"] != "ok":
+                continue
+            metrics = local_overlap_scores(query, item["answer"], contexts)
+            metrics["unmatched_token_share_proxy"] = 1.0 - metrics["evidence_token_coverage"]
+            item["metrics"] = metrics
+        if any(item["status"] == "ok" for item in results):
+            evaluation_status = "ok"
 
         return {
             "query": query,
@@ -545,10 +560,9 @@ Answer:"""
             "sources": source_payload,
             "source_count": len(sources),
             "evaluation": {
-                "framework": "RAGAS",
-                "judge_model": judge_model,
+                "method": "deterministic_unicode_token_overlap_v1",
                 "status": evaluation_status,
-                "hallucination_measure": "Unsupported-claim-rate proxy = 1 - RAGAS faithfulness; not an independent hallucination classifier.",
+                "note": "Scores are exact-token coverage heuristics, not semantic faithfulness, answer relevance, or hallucination detection.",
             },
         }
 
@@ -559,64 +573,87 @@ Answer:"""
         fetch_k: int = DEFAULT_FETCH_K,
         where: dict[str, Any] | None = None,
         generate: bool = True,
-        llm_provider: str = "gemini",
+        llm_provider: str = "qwen",
     ) -> dict[str, Any]:
         sources = self.retrieve_sources(query, top_k=top_k, fetch_k=fetch_k, where=where)
-        answer = self.generate_answer(query, sources, llm_provider) if generate else ""
+        used_provider = llm_provider if sources and generate else None
+        fallback_used = False
+        fallback_reason = None
+        if generate:
+            try:
+                answer = self.generate_answer(query, sources, llm_provider)
+                if sources and not answer.strip():
+                    raise RuntimeError("The selected model returned an empty answer.")
+            except Exception as primary_error:
+                if not sources:
+                    raise
+                fallback_provider = "groq" if llm_provider == "qwen" else "qwen"
+                try:
+                    answer = self.generate_answer(query, sources, fallback_provider)
+                    if not answer.strip():
+                        raise RuntimeError("The fallback model returned an empty answer.")
+                    used_provider = fallback_provider
+                    fallback_used = True
+                    fallback_reason = str(primary_error)
+                except Exception as fallback_error:
+                    raise RuntimeError(
+                        f"Primary model {llm_provider!r} failed ({primary_error}); "
+                        f"fallback model {fallback_provider!r} failed ({fallback_error})."
+                    ) from fallback_error
+        else:
+            answer = ""
         return {
             "query": query,
             "answer": answer,
             "sources": sources,
             "source_count": len(sources),
             "collection_count": self.collection_count(),
+            "generation": {
+                "provider": used_provider,
+                "model": self.qwen_model_name if used_provider == "qwen" else self.groq_model_name if used_provider == "groq" else None,
+                "fallback_used": fallback_used,
+                "fallback_reason": fallback_reason,
+            },
         }
 
-    def generate_answer_stream(self, query: str, sources: list[RetrievedSource], llm_provider: str = "gemini"):
+    def generate_answer_stream(self, query: str, sources: list[RetrievedSource], llm_provider: str = "qwen"):
         if not sources:
             yield "I do not have enough reliable KCC context to answer this question safely."
             return
 
         prompt = self.build_prompt(query, sources)
 
-        if llm_provider == "llama":
-            yield from self._generate_stream_llama(prompt)
-        elif llm_provider == "gemini":
-            yield from self._generate_stream_gemini(prompt)
+        if llm_provider in ("qwen", "groq"):
+            model_name = self.qwen_model_name if llm_provider == "qwen" else self.groq_model_name
+            yield from self._generate_stream_groq(prompt, model_name)
         else:
             raise ValueError(f"Unsupported LLM provider: {llm_provider!r}")
 
-    def _generate_stream_gemini(self, prompt: str):
-        api_key = os.environ.get("GEMINI_API_KEY")
+    def _generate_stream_groq(self, prompt: str, model_name: str):
+        api_key = os.environ.get("GROQ_API_KEY")
         if not api_key:
-            raise RuntimeError("GEMINI_API_KEY environment variable is not set.")
+            raise RuntimeError("GROQ_API_KEY environment variable is not set.")
 
-        client = genai.Client(api_key=api_key)
-        response_stream = client.models.generate_content_stream(
-            model=self.llm_model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION, temperature=0.0),
-        )
-        for chunk in response_stream:
-            if chunk.text:
-                yield chunk.text
-
-    def _generate_stream_llama(self, prompt: str):
-        hf_token = os.environ.get("HF_TOKEN")
-        if not hf_token:
-            raise RuntimeError("HF_TOKEN environment variable is not set for Llama 3 access.")
-            
-        client = InferenceClient(model=self.llama_model_name, token=hf_token)
-        messages = [
-            {"role": "system", "content": SYSTEM_INSTRUCTION},
-            {"role": "user", "content": prompt}
-        ]
+        client = _groq_client(api_key)
         try:
-            stream = client.chat_completion(messages=messages, stream=True, max_tokens=500, temperature=0.0)
+            completion_args = {
+                "model": model_name,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_INSTRUCTION},
+                    {"role": "user", "content": prompt},
+                ],
+                "max_completion_tokens": 500,
+                "temperature": 0.0,
+                "stream": True,
+            }
+            if model_name == self.qwen_model_name:
+                completion_args["reasoning_effort"] = "none"
+            stream = client.chat.completions.create(**completion_args)
             for chunk in stream:
                 if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
         except Exception as e:
-            raise RuntimeError(f"Error calling Llama 3: {e}") from e
+            raise RuntimeError(f"Error calling Groq: {e}") from e
 
     def answer_query_stream(
         self,
@@ -624,7 +661,7 @@ Answer:"""
         top_k: int = DEFAULT_TOP_K,
         fetch_k: int = DEFAULT_FETCH_K,
         where: dict[str, Any] | None = None,
-        llm_provider: str = "gemini",
+        llm_provider: str = "qwen",
     ):
         sources = self.retrieve_sources(query, top_k=top_k, fetch_k=fetch_k, where=where)
         # First yield the sources so the UI can show them immediately
@@ -635,9 +672,41 @@ Answer:"""
             "collection_count": self.collection_count(),
         }
         
-        # Then yield the streamed chunks
-        for chunk in self.generate_answer_stream(query, sources, llm_provider=llm_provider):
+        if not sources:
+            for chunk in self.generate_answer_stream(query, sources, llm_provider=llm_provider):
+                yield {"type": "chunk", "content": chunk}
+            return
+
+        providers = [llm_provider, "groq" if llm_provider == "qwen" else "qwen"]
+        provider_errors: dict[str, str] = {}
+        for provider_index, provider in enumerate(providers):
+            model_name = self.qwen_model_name if provider == "qwen" else self.groq_model_name
+            stream = iter(self.generate_answer_stream(query, sources, llm_provider=provider))
+            try:
+                first_chunk = next(stream)
+            except StopIteration:
+                provider_errors[provider] = f"Model {model_name!r} returned an empty answer."
+                continue
+            except Exception as error:
+                provider_errors[provider] = str(error)
+                continue
+
             yield {
-                "type": "chunk",
-                "content": chunk,
+                "type": "model",
+                "provider": provider,
+                "model": model_name,
+                "fallback_used": provider_index > 0,
+                "fallback_reason": provider_errors.get(providers[0]) if provider_index > 0 else None,
             }
+            yield {"type": "chunk", "content": first_chunk}
+            try:
+                for chunk in stream:
+                    yield {"type": "chunk", "content": chunk}
+            except Exception as error:
+                yield {"type": "error", "message": f"The {model_name} stream stopped unexpectedly: {error}"}
+            return
+
+        raise RuntimeError(
+            f"Both chat models failed. Primary {providers[0]!r}: {provider_errors.get(providers[0], 'unknown error')}; "
+            f"fallback {providers[1]!r}: {provider_errors.get(providers[1], 'unknown error')}."
+        )
