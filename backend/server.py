@@ -54,11 +54,24 @@ except Exception as rag_err:
         @property
         def cross_encoder_name(self): return "none"
         @property
-        def llm_model_name(self): return "gemini-2.5-flash"
+        def llm_model_name(self): return "qwen/qwen3.8-27b"
+        @property
+        def qwen_model_name(self): return "qwen/qwen3.8-27b"
+        @property
+        def groq_model_name(self): return "openai/gpt-oss-20b"
         @property
         def llama_model_name(self): return "meta-llama/Llama-3.1-8B-Instruct"
         def answer_query(self, *args, **kwargs):
-            return {"answer": "RAG knowledge base is initializing or offline.", "sources": []}
+            return {
+                "answer": "RAG knowledge base is initializing or offline.",
+                "sources": [],
+                "generation": {
+                    "provider": None,
+                    "model": None,
+                    "fallback_used": False,
+                    "fallback_reason": None,
+                },
+            }
         def answer_query_stream(self, *args, **kwargs):
             yield {"type": "chunk", "content": "RAG knowledge base is initializing or offline."}
         def compare_models(self, *args, **kwargs):
@@ -88,13 +101,15 @@ class ExplainRequest(BaseModel):
 
 @app.get("/api/health")
 def health_check():
+    qwen = getattr(rag, "qwen_model_name", "qwen/qwen3.8-27b")
+    groq = getattr(rag, "groq_model_name", "openai/gpt-oss-20b")
     return {
         "status": "ok",
         "collection_count": rag.collection_count(),
-        "model": rag.embed_model_name,
-        "reranker": rag.cross_encoder_name,
-        "llm_model": rag.qwen_model_name,
-        "llm_models": {"qwen": rag.qwen_model_name, "groq": rag.groq_model_name},
+        "model": getattr(rag, "embed_model_name", "none"),
+        "reranker": getattr(rag, "cross_encoder_name", "none"),
+        "llm_model": qwen,
+        "llm_models": {"qwen": qwen, "groq": groq},
         "evaluation_method": "deterministic_unicode_token_overlap_v1",
     }
 
