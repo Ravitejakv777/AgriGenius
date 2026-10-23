@@ -27,19 +27,21 @@ export function CascadingLocationPicker({
   disabled = false,
   className = ''
 }: CascadingLocationPickerProps) {
-  // Available lists based on hierarchy, all sorted in ascending order (A-Z)
+  // Available lists based on hierarchy, strictly arranged A-Z
   const countries = getCountries();
-  const currentCountry = country && countries.includes(country) ? country : (countries.includes('India') ? 'India' : countries[0] || '');
-  
-  const states = getStates(currentCountry);
-  const currentState = state && states.includes(state) ? state : (states.includes('Andhra Pradesh') ? 'Andhra Pradesh' : states[0] || '');
-  
-  const districts = getDistricts(currentCountry, currentState);
-  const currentDistrict = district && districts.includes(district) ? district : (districts.includes('Guntur') ? 'Guntur' : districts[0] || '');
-  
-  // Strictly fetches ONLY the villages belonging to this exact district, sorted in ascending order
-  const villages = getVillages(currentCountry, currentState, currentDistrict);
-  
+  const currentCountry = country && countries.includes(country) ? country : '';
+
+  const states = currentCountry ? getStates(currentCountry) : [];
+  const currentState = currentCountry && state && states.includes(state) ? state : '';
+
+  const districts = currentCountry && currentState ? getDistricts(currentCountry, currentState) : [];
+  const currentDistrict = currentState && district && districts.includes(district) ? district : '';
+
+  // Strictly fetches ONLY the villages belonging to this exact district
+  const villages = currentCountry && currentState && currentDistrict
+    ? getVillages(currentCountry, currentState, currentDistrict)
+    : [];
+
   // Track whether user explicitly chose "Other (specify below)"
   const [isOtherSelected, setIsOtherSelected] = useState(village === OTHER_OPTION);
   const [customVillageInput, setCustomVillageInput] = useState(
@@ -48,64 +50,50 @@ export function CascadingLocationPicker({
       : ''
   );
 
-  // If village prop changes externally and is not in the district's village list, sync custom state
+  // Sync custom input if an external custom village is passed
   useEffect(() => {
     if (village && villages.includes(village)) {
       setIsOtherSelected(village === OTHER_OPTION);
-    } else if (village && !villages.includes(village) && village !== OTHER_OPTION) {
+    } else if (village && !villages.includes(village) && village !== OTHER_OPTION && currentDistrict) {
       setCustomVillageInput(village);
+      setIsOtherSelected(true);
+    } else if (!village) {
+      setIsOtherSelected(false);
+      setCustomVillageInput('');
     }
-  }, [village, villages]);
+  }, [village, villages, currentDistrict]);
 
+  // NEVER auto-select child options on parent change
   const handleCountryChange = (newCountry: string) => {
     setIsOtherSelected(false);
     setCustomVillageInput('');
-
-    const newStates = getStates(newCountry);
-    const firstState = newStates.includes('Andhra Pradesh') ? 'Andhra Pradesh' : (newStates[0] || '');
-    const newDistricts = getDistricts(newCountry, firstState);
-    const firstDistrict = newDistricts.includes('Guntur') ? 'Guntur' : (newDistricts[0] || '');
-    const newVillages = getVillages(newCountry, firstState, firstDistrict);
-    const firstVillage = newVillages.filter(v => v !== OTHER_OPTION)[0] || OTHER_OPTION;
-
     onChange({
       country: newCountry,
-      state: firstState,
-      district: firstDistrict,
-      village: firstVillage
+      state: '',
+      district: '',
+      village: ''
     });
   };
 
   const handleStateChange = (newState: string) => {
     setIsOtherSelected(false);
     setCustomVillageInput('');
-
-    const newDistricts = getDistricts(currentCountry, newState);
-    const firstDistrict = newDistricts.includes('Guntur') ? 'Guntur' : (newDistricts[0] || '');
-    const newVillages = getVillages(currentCountry, newState, firstDistrict);
-    const firstVillage = newVillages.filter(v => v !== OTHER_OPTION)[0] || OTHER_OPTION;
-
     onChange({
       country: currentCountry,
       state: newState,
-      district: firstDistrict,
-      village: firstVillage
+      district: '',
+      village: ''
     });
   };
 
   const handleDistrictChange = (newDistrict: string) => {
     setIsOtherSelected(false);
     setCustomVillageInput('');
-
-    const newVillages = getVillages(currentCountry, currentState, newDistrict);
-    // Strictly pick the first village belonging to the newly selected district
-    const firstVillage = newVillages.filter(v => v !== OTHER_OPTION)[0] || OTHER_OPTION;
-
     onChange({
       country: currentCountry,
       state: currentState,
       district: newDistrict,
-      village: firstVillage
+      village: ''
     });
   };
 
@@ -139,21 +127,24 @@ export function CascadingLocationPicker({
     });
   };
 
-  // The active village displayed in the dropdown
+  // The active village displayed in the dropdown (strictly empty if not chosen)
   const selectedDropdownValue = isOtherSelected
     ? OTHER_OPTION
-    : (village && villages.includes(village) ? village : (villages[0] || OTHER_OPTION));
+    : (village && villages.includes(village) ? village : '');
 
-  // The resolved village string for display
-  const resolvedVillageName = isOtherSelected
-    ? (customVillageInput.trim() || 'Custom Village')
-    : (village && villages.includes(village) ? village : (villages[0] || 'Village'));
+  // Formatted summary
+  const summaryParts = [
+    isOtherSelected ? customVillageInput.trim() : (village && villages.includes(village) ? village : ''),
+    currentDistrict,
+    currentState,
+    currentCountry
+  ].filter(Boolean);
 
   return (
     <div className={`space-y-3 ${className}`}>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         
-        {/* 1. Country Selection (Ascending A-Z) */}
+        {/* 1. Country Selection */}
         <div>
           <label className="block text-[11px] font-semibold text-slate-700 dark:text-neutral-300 mb-1">
             Country
@@ -166,6 +157,9 @@ export function CascadingLocationPicker({
               onChange={(e) => handleCountryChange(e.target.value)}
               className="w-full pl-9 pr-7 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all appearance-none cursor-pointer disabled:opacity-60"
             >
+              <option value="" className="text-slate-400 dark:text-neutral-500">
+                -- Select Country --
+              </option>
               {countries.map((c) => (
                 <option key={c} value={c} className="bg-white dark:bg-neutral-900 text-slate-900 dark:text-white">
                   {c}
@@ -180,7 +174,7 @@ export function CascadingLocationPicker({
           </div>
         </div>
 
-        {/* 2. State Selection (Ascending A-Z) */}
+        {/* 2. State Selection */}
         <div>
           <label className="block text-[11px] font-semibold text-slate-700 dark:text-neutral-300 mb-1">
             State / Region
@@ -188,11 +182,14 @@ export function CascadingLocationPicker({
           <div className="relative">
             <Map className="w-3.5 h-3.5 text-slate-400 dark:text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
-              disabled={disabled || states.length === 0}
+              disabled={disabled || !currentCountry || states.length === 0}
               value={currentState}
               onChange={(e) => handleStateChange(e.target.value)}
-              className="w-full pl-9 pr-7 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all appearance-none cursor-pointer disabled:opacity-60"
+              className="w-full pl-9 pr-7 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
+              <option value="" className="text-slate-400 dark:text-neutral-500">
+                {currentCountry ? '-- Select State / Region --' : '-- Select Country First --'}
+              </option>
               {states.map((s) => (
                 <option key={s} value={s} className="bg-white dark:bg-neutral-900 text-slate-900 dark:text-white">
                   {s}
@@ -207,7 +204,7 @@ export function CascadingLocationPicker({
           </div>
         </div>
 
-        {/* 3. District Selection (Ascending A-Z) */}
+        {/* 3. District Selection */}
         <div>
           <label className="block text-[11px] font-semibold text-slate-700 dark:text-neutral-300 mb-1">
             District / County
@@ -215,11 +212,14 @@ export function CascadingLocationPicker({
           <div className="relative">
             <Building2 className="w-3.5 h-3.5 text-slate-400 dark:text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
-              disabled={disabled || districts.length === 0}
+              disabled={disabled || !currentState || districts.length === 0}
               value={currentDistrict}
               onChange={(e) => handleDistrictChange(e.target.value)}
-              className="w-full pl-9 pr-7 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all appearance-none cursor-pointer disabled:opacity-60"
+              className="w-full pl-9 pr-7 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
+              <option value="" className="text-slate-400 dark:text-neutral-500">
+                {currentState ? '-- Select District --' : '-- Select State First --'}
+              </option>
               {districts.map((d) => (
                 <option key={d} value={d} className="bg-white dark:bg-neutral-900 text-slate-900 dark:text-white">
                   {d}
@@ -234,7 +234,7 @@ export function CascadingLocationPicker({
           </div>
         </div>
 
-        {/* 4. Village Selection (Strictly for this District only, Ascending A-Z) */}
+        {/* 4. Village Selection - Strictly for this selected district ONLY */}
         <div>
           <label className="block text-[11px] font-semibold text-slate-700 dark:text-neutral-300 mb-1">
             Village / Mandal / Town
@@ -242,11 +242,14 @@ export function CascadingLocationPicker({
           <div className="relative">
             <Home className="w-3.5 h-3.5 text-slate-400 dark:text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <select
-              disabled={disabled || villages.length === 0}
+              disabled={disabled || !currentDistrict || villages.length === 0}
               value={selectedDropdownValue}
               onChange={(e) => handleVillageSelect(e.target.value)}
-              className="w-full pl-9 pr-7 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all appearance-none cursor-pointer disabled:opacity-60"
+              className="w-full pl-9 pr-7 py-2 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all appearance-none cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
+              <option value="" className="text-slate-400 dark:text-neutral-500">
+                {currentDistrict ? '-- Select Village / Mandal --' : '-- Select District First --'}
+              </option>
               {villages.map((v) => (
                 <option key={v} value={v} className="bg-white dark:bg-neutral-900 text-slate-900 dark:text-white">
                   {v}
@@ -264,7 +267,7 @@ export function CascadingLocationPicker({
       </div>
 
       {/* Custom Village text input if 'Other' is explicitly chosen */}
-      {isOtherSelected && (
+      {isOtherSelected && currentDistrict && (
         <div className="pt-1">
           <label className="block text-[11px] font-semibold text-slate-700 dark:text-neutral-300 mb-1">
             Specify Your Village / Gram Panchayat Name in {currentDistrict}
@@ -285,12 +288,7 @@ export function CascadingLocationPicker({
       <div className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-neutral-900/40 border border-slate-200/60 dark:border-neutral-800/60 text-[11px] text-slate-600 dark:text-neutral-400 flex items-center space-x-1.5">
         <span className="font-semibold text-slate-800 dark:text-neutral-200">Selected Location:</span>
         <span className="truncate">
-          {[
-            resolvedVillageName,
-            currentDistrict || 'District',
-            currentState || 'State',
-            currentCountry || 'Country'
-          ].filter(Boolean).join(', ')}
+          {summaryParts.length > 0 ? summaryParts.join(', ') : <span className="italic text-slate-400">Not selected yet</span>}
         </span>
       </div>
     </div>

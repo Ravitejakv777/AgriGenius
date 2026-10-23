@@ -25,10 +25,12 @@ import {
   Eye,
   X,
   FileText,
-  Loader2
+  Loader2,
+  Lock
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
+import { saveReportApi, fetchReportsApi, deleteReportApi } from '../lib/api';
 
 export type LanguageCode = 'en' | 'hi' | 'te' | 'mr' | 'ta';
 
@@ -820,7 +822,7 @@ function downloadCleanPdfReport(report: GeneratedReport) {
 
 export function ReportPage() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [form, setForm] = useState<CropReportState>(DEFAULT_STATE);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -829,8 +831,9 @@ export function ReportPage() {
   const [generatedReport, setGeneratedReport] = useState<GeneratedReport | null>(null);
   const [copied, setCopied] = useState(false);
   const [showPreviousReports, setShowPreviousReports] = useState(false);
+  const [showAuthGateModal, setShowAuthGateModal] = useState(false);
 
-  // Load only reports created in this browser; do not seed the history with sample farmers.
+  // Load reports created in this browser or from database
   const [previousReports, setPreviousReports] = useState<GeneratedReport[]>(() => {
     try {
       const saved = localStorage.getItem('agrigenius_previous_reports');
@@ -846,7 +849,44 @@ export function ReportPage() {
     return [];
   });
 
+  // Fetch reports from database for logged in user
+  useEffect(() => {
+    if (isAuthenticated && user?.email) {
+      fetchReportsApi(user.email, user.id)
+        .then((dbReports) => {
+          if (Array.isArray(dbReports) && dbReports.length > 0) {
+            const mapped: GeneratedReport[] = [];
+            for (const r of dbReports) {
+              if (r.report_data && r.report_data.id) {
+                mapped.push({
+                  ...r.report_data,
+                  dbId: r.id
+                } as any);
+              }
+            }
+            if (mapped.length > 0) {
+              setPreviousReports(mapped);
+              try {
+                localStorage.setItem('agrigenius_previous_reports', JSON.stringify(mapped));
+              } catch (e) {
+                console.warn(e);
+              }
+            }
+          }
+        })
+        .catch((err) => console.warn('Could not load reports from database:', err));
+    }
+  }, [isAuthenticated, user?.email, user?.id]);
+
   const deleteReportFromHistory = (reportId: string) => {
+    const target = previousReports.find(r => r.id === reportId);
+    const dbId = (target as any)?.dbId || parseInt(reportId.replace(/\D/g, ''), 10);
+
+    if (isAuthenticated && user?.email && dbId && !isNaN(dbId)) {
+      deleteReportApi(dbId, user.email, user.id)
+        .catch((err) => console.warn('Could not delete report from DB:', err));
+    }
+
     setPreviousReports((prev) => {
       const updated = prev.filter((r) => r.id !== reportId);
       try {
@@ -874,6 +914,12 @@ export function ReportPage() {
   };
 
   const handleGenerate = () => {
+    // Auth gate: unauthenticated users must sign in or register
+    if (!isAuthenticated) {
+      setShowAuthGateModal(true);
+      return;
+    }
+
     setIsGenerating(true);
     setGenerationProgress(15);
     setGenerationStepIndex(0);
@@ -902,7 +948,37 @@ export function ReportPage() {
       setGenerationProgress(100);
       const report = generateRecommendationReport(form, form.language);
       setGeneratedReport(report);
-      // Auto-save generated report to previous reports history
+
+      // Auto-save generated report to database if authenticated
+      if (isAuthenticated && user?.email) {
+        saveReportApi({
+          user_email: user.email,
+          user_id: user.id,
+          report_code: report.id,
+          title: `${form.fullName || report.farmer.name || 'Farmer'}'s ${form.nextSeason} Advisory Report`,
+          farmer_name: report.farmer.name,
+          location: report.farmer.location,
+          land_acres: report.farmer.landAcres,
+          soil_type: report.farmer.soilType,
+          water_availability: report.farmer.waterAvailability,
+          previous_crop: report.farmer.previousCrop,
+          previous_yield: report.farmer.previousYield,
+          next_season: report.farmer.nextSeason,
+          budget: report.farmer.investmentBudget,
+          main_objective: report.farmer.mainObjective,
+          top_crop: report.topSelectedCrop?.name,
+          language: form.language,
+          report_data: report,
+        })
+          .then((savedDb) => {
+            if (savedDb && savedDb.id) {
+              (report as any).dbId = savedDb.id;
+            }
+          })
+          .catch((err) => console.warn('Could not save report to database:', err));
+      }
+
+      // Save to local state and localStorage history
       setPreviousReports((prev) => {
         const updated = [report, ...prev.filter((r) => r.id !== report.id)];
         try {
@@ -2475,6 +2551,65 @@ Formula: Gross revenue = Yield × Price | Net return = Gross - Cost | Return on 
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Create New Recommendation</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* SIGN UP REQUIRED MODAL FOR UNAUTHENTICATED USERS */}
+      <AnimatePresence>
+        {showAuthGateModal && (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+            onClick={() => setShowAuthGateModal(false)}
+          >
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.94, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 15 }}
+              className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl relative text-center"
+            >
+              <button
+                type="button"
+                onClick={() => setShowAuthGateModal(false)}
+                className="absolute top-4 right-4 p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 flex items-center justify-center mx-auto mb-4 text-emerald-600 dark:text-emerald-400 shadow-md">
+                <Lock className="w-7 h-7" />
+              </div>
+
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                Sign In or Sign Up to Generate Reports
+              </h3>
+
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-neutral-400 leading-relaxed mb-6">
+                Please create a free farmer account or log in to calculate complete financial crop feasibility estimates, download A4 PDF reports, and save all your diagnostic reports to your account.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAuthGateModal(false);
+                    navigate('/auth');
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                >
+                  <span>Create Account / Sign In</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAuthGateModal(false)}
+                  className="py-3 px-4 rounded-xl border border-slate-200 dark:border-neutral-700 text-slate-600 dark:text-neutral-400 hover:bg-slate-100 dark:hover:bg-neutral-800 font-semibold text-xs sm:text-sm transition-all cursor-pointer"
+                >
+                  Cancel
                 </button>
               </div>
             </motion.div>

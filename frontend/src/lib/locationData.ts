@@ -272,6 +272,7 @@ export const LOCATION_DATA: LocationDataStructure = {
       "Vijayapura": ["Babaleshwar", "Basavana Bagewadi", "Chadchan", "Devar Hippargi", "Indi", "Kolhar", "Muddebihal", "Nalatwad", "Sindagi", "Talikote", "Tikota", "Vijayapura"]
     },
     "Tamil Nadu": {
+      "Tiruppur": ["Avinashi", "Dharapuram", "Kangeyam", "Madathukulam", "Palladam", "Tiruppur North", "Tiruppur South", "Udumalaipettai"],
       "Coimbatore": ["Anaimalai", "Annur", "Coimbatore North", "Coimbatore South", "Kinathukadavu", "Madukkarai", "Mettupalayam", "Perur", "Pollachi", "Sulur", "Valparai"],
       "Erode": ["Anthiyur", "Bhavani", "Erode", "Gobichettipalayam", "Kodumudi", "Modakkurichi", "Nambiyur", "Perundurai", "Sathyamangalam", "Thalavadi"],
       "Madurai": ["Alanganallur", "Kallikudi", "Madurai East", "Madurai North", "Madurai South", "Madurai West", "Melur", "Peraiyur", "Thirumangalam", "Thirupparankundram", "Usilampatti", "Vadipatti"],
@@ -410,6 +411,7 @@ export function getDistricts(country: string, state: string): string[] {
 /**
  * Returns ONLY the villages/mandals strictly belonging to the specified district,
  * sorted in ascending alphabetical order (A-Z), with 'Other (specify below)' at the end.
+ * If no district or an invalid district is provided, returns an empty list.
  */
 export function getVillages(country: string, state: string, district: string): string[] {
   if (
@@ -420,11 +422,11 @@ export function getVillages(country: string, state: string, district: string): s
     !LOCATION_DATA[country][state] ||
     !LOCATION_DATA[country][state][district]
   ) {
-    return [OTHER_OPTION];
+    return [];
   }
 
   const rawList = LOCATION_DATA[country][state][district] || [];
-  // Strict ascending alphabetical sort (A to Z)
+  // Strict ascending alphabetical sort (A to Z) - exclusively for this selected district
   const sortedVillages = [...new Set(rawList)].sort((a, b) => a.localeCompare(b));
   return [...sortedVillages, OTHER_OPTION];
 }
@@ -438,13 +440,13 @@ export interface ParsedLocation {
 
 export function parseLocationString(place?: string): ParsedLocation {
   const result: ParsedLocation = {
-    country: "India",
-    state: "Andhra Pradesh",
-    district: "Guntur",
-    village: "Amaravati"
+    country: "",
+    state: "",
+    district: "",
+    village: ""
   };
 
-  if (!place) return result;
+  if (!place || !place.trim()) return result;
 
   const parts = place.split(",").map(p => p.trim()).filter(Boolean);
 
@@ -454,10 +456,12 @@ export function parseLocationString(place?: string): ParsedLocation {
     if (foundState) {
       result.country = foundState.country;
       result.state = foundState.state;
-      const dists = getDistricts(result.country, result.state);
-      result.district = dists[0] || "";
-      const vills = getVillages(result.country, result.state, result.district);
-      result.village = vills[0] || "";
+      return result;
+    }
+    const countries = getCountries();
+    const matchedCountry = countries.find(c => c.toLowerCase() === parts[0].toLowerCase());
+    if (matchedCountry) {
+      result.country = matchedCountry;
       return result;
     }
   }
@@ -470,49 +474,33 @@ export function parseLocationString(place?: string): ParsedLocation {
   if (matchedCountry) {
     result.country = matchedCountry;
     parts.pop();
-  } else {
-    result.country = "India";
   }
 
   // Next is state
   if (parts.length > 0) {
-    const states = getStates(result.country);
+    const states = result.country ? getStates(result.country) : [];
     const candidateState = parts[parts.length - 1];
     const matchedState = states.find(s => s.toLowerCase() === candidateState?.toLowerCase());
     if (matchedState) {
       result.state = matchedState;
       parts.pop();
-    } else {
-      result.state = states.includes("Andhra Pradesh") ? "Andhra Pradesh" : (states[0] || "");
     }
-  } else {
-    const states = getStates(result.country);
-    result.state = states.includes("Andhra Pradesh") ? "Andhra Pradesh" : (states[0] || "");
   }
 
   // Next is district
-  if (parts.length > 0) {
+  if (parts.length > 0 && result.country && result.state) {
     const districts = getDistricts(result.country, result.state);
     const candidateDistrict = parts[parts.length - 1];
     const matchedDistrict = districts.find(d => d.toLowerCase() === candidateDistrict?.toLowerCase());
     if (matchedDistrict) {
       result.district = matchedDistrict;
       parts.pop();
-    } else {
-      result.district = districts.includes("Guntur") ? "Guntur" : (districts[0] || parts[parts.length - 1]);
-      parts.pop();
     }
-  } else {
-    const dists = getDistricts(result.country, result.state);
-    result.district = dists.includes("Guntur") ? "Guntur" : (dists[0] || "");
   }
 
   // Remaining parts are village / mandal
   if (parts.length > 0) {
     result.village = parts.join(", ");
-  } else {
-    const vills = getVillages(result.country, result.state, result.district);
-    result.village = vills[0] || "";
   }
 
   return result;

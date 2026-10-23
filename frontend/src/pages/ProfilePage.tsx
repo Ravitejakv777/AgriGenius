@@ -25,6 +25,7 @@ import { useAuth, type UserRole } from '../context/AuthContext';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { CascadingLocationPicker } from '../components/CascadingLocationPicker';
 import { parseLocationString, formatLocationString } from '../lib/locationData';
+import { COUNTRY_CODES, formatPhoneWithCountryCode, parsePhoneWithCountryCode } from '../lib/countryCodes';
 
 const DELETION_REASONS = [
   "I am no longer actively farming or managing crops",
@@ -42,15 +43,17 @@ export function ProfilePage() {
   // Profile Edit State
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
-  const [editPhone, setEditPhone] = useState(user?.phone || '');
+  const initialPhone = parsePhoneWithCountryCode(user?.phone || '');
+  const [editCountryCode, setEditCountryCode] = useState(initialPhone.countryCode);
+  const [editPhoneDigits, setEditPhoneDigits] = useState(initialPhone.digits);
   const [editDob, setEditDob] = useState(user?.dob || '');
   
   // Cascading Location state
   const initialLoc = parseLocationString(user?.place || user?.state);
-  const [editCountry, setEditCountry] = useState(user?.country || initialLoc.country || 'India');
-  const [editState, setEditState] = useState(user?.state || initialLoc.state || 'Andhra Pradesh');
-  const [editDistrict, setEditDistrict] = useState(user?.district || initialLoc.district || 'Guntur');
-  const [editVillage, setEditVillage] = useState(user?.village || initialLoc.village || 'Amaravati');
+  const [editCountry, setEditCountry] = useState(user?.country || initialLoc.country || '');
+  const [editState, setEditState] = useState(user?.state || initialLoc.state || '');
+  const [editDistrict, setEditDistrict] = useState(user?.district || initialLoc.district || '');
+  const [editVillage, setEditVillage] = useState(user?.village || initialLoc.village || '');
   
   const [editRole, setEditRole] = useState<UserRole>(user?.role || 'farmer');
   const [isSaving, setIsSaving] = useState(false);
@@ -60,13 +63,15 @@ export function ProfilePage() {
   useEffect(() => {
     if (user) {
       setEditName(user.name || '');
-      setEditPhone(user.phone || '');
+      const parsed = parsePhoneWithCountryCode(user.phone || '');
+      setEditCountryCode(parsed.countryCode);
+      setEditPhoneDigits(parsed.digits);
       setEditDob(user.dob || '');
       const loc = parseLocationString(user.place || user.state);
-      setEditCountry(user.country || loc.country || 'India');
-      setEditState(user.state || loc.state || 'Andhra Pradesh');
-      setEditDistrict(user.district || loc.district || 'Guntur');
-      setEditVillage(user.village || loc.village || 'Amaravati');
+      setEditCountry(user.country || loc.country || '');
+      setEditState(user.state || loc.state || '');
+      setEditDistrict(user.district || loc.district || '');
+      setEditVillage(user.village || loc.village || '');
       setEditRole(user.role || 'farmer');
     }
   }, [user, isEditing]);
@@ -117,9 +122,10 @@ export function ProfilePage() {
     setSaveMessage(null);
     try {
       const formattedPlace = formatLocationString(editCountry, editState, editDistrict, editVillage);
+      const fullPhone = formatPhoneWithCountryCode(editCountryCode, editPhoneDigits);
       await updateProfile({
         name: editName.trim(),
-        phone: editPhone.trim(),
+        phone: fullPhone,
         dob: editDob.trim(),
         country: editCountry,
         state: editState,
@@ -144,13 +150,15 @@ export function ProfilePage() {
   const handleCancelEdit = () => {
     if (user) {
       setEditName(user.name || '');
-      setEditPhone(user.phone || '');
+      const parsed = parsePhoneWithCountryCode(user.phone || '');
+      setEditCountryCode(parsed.countryCode);
+      setEditPhoneDigits(parsed.digits);
       setEditDob(user.dob || '');
       const loc = parseLocationString(user.place || user.state);
-      setEditCountry(user.country || loc.country || 'India');
-      setEditState(user.state || loc.state || 'Andhra Pradesh');
-      setEditDistrict(user.district || loc.district || 'Guntur');
-      setEditVillage(user.village || loc.village || 'Amaravati');
+      setEditCountry(user.country || loc.country || '');
+      setEditState(user.state || loc.state || '');
+      setEditDistrict(user.district || loc.district || '');
+      setEditVillage(user.village || loc.village || '');
       setEditRole(user.role || 'farmer');
     }
     setIsEditing(false);
@@ -274,7 +282,7 @@ export function ProfilePage() {
 
                 <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 text-slate-600 dark:text-neutral-400">
                   <MapPin className="w-3 h-3 mr-1 text-slate-400 dark:text-neutral-500" />
-                  {user.place || user.state || 'Andhra Pradesh, India'}
+                  {user.place || [user.village, user.district, user.state, user.country].filter(Boolean).join(', ') || 'Location Not Set'}
                 </span>
               </div>
             </div>
@@ -335,6 +343,31 @@ export function ProfilePage() {
             </div>
           )}
 
+          {/* Profile Incomplete Setup Reminder Banner */}
+          {!isEditing && (!user.phone?.trim() || !user.dob?.trim() || (!user.district?.trim() && !user.place?.trim())) && (
+            <div className="mb-5 p-4 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start space-x-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-amber-800 dark:text-amber-100 flex items-center gap-1.5">
+                    <span>Action Needed: Set Up Your Profile</span>
+                  </h4>
+                  <p className="text-[11px] sm:text-xs text-amber-700/90 dark:text-amber-300/80 leading-relaxed mt-0.5">
+                    Your phone number, date of birth, or farm location have not been configured yet. Set them up to receive accurate, localized advisory and agronomic alerts for your district.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all shadow-sm shrink-0 cursor-pointer self-start sm:self-auto"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Set Up Profile</span>
+              </button>
+            </div>
+          )}
+
           {!isEditing ? (
             /* READ-ONLY VIEW */
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -357,58 +390,104 @@ export function ProfilePage() {
               </div>
 
               {/* Phone Number */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-neutral-900/60 border border-slate-100 dark:border-neutral-800/80">
-                <span className="text-[11px] text-slate-400 dark:text-neutral-500 block mb-0.5 font-medium">Phone Number</span>
-                <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-semibold text-sm">
-                  <Phone className="w-4 h-4 text-emerald-600 dark:text-neutral-400 shrink-0" />
-                  <span>{user.phone || '+91 98765 43210'}</span>
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-neutral-900/60 border border-slate-100 dark:border-neutral-800/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] text-slate-400 dark:text-neutral-500 block mb-0.5 font-medium">Phone Number</span>
+                  <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-semibold text-sm">
+                    <Phone className="w-4 h-4 text-emerald-600 dark:text-neutral-400 shrink-0" />
+                    {user.phone && user.phone.trim() ? (
+                      <span>{user.phone}</span>
+                    ) : (
+                      <span className="text-slate-400 dark:text-neutral-500 italic font-normal text-xs">Not provided</span>
+                    )}
+                  </div>
                 </div>
+                {(!user.phone || !user.phone.trim()) && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(true)}
+                    className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                  >
+                    + Add Phone
+                  </button>
+                )}
               </div>
 
               {/* Date of Birth */}
-              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-neutral-900/60 border border-slate-100 dark:border-neutral-800/80">
-                <span className="text-[11px] text-slate-400 dark:text-neutral-500 block mb-0.5 font-medium">Date of Birth (DOB)</span>
-                <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-semibold text-sm">
-                  <Calendar className="w-4 h-4 text-emerald-600 dark:text-neutral-400 shrink-0" />
-                  <span>{user.dob || '15/08/1995'}</span>
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-neutral-900/60 border border-slate-100 dark:border-neutral-800/80 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] text-slate-400 dark:text-neutral-500 block mb-0.5 font-medium">Date of Birth (DOB)</span>
+                  <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-semibold text-sm">
+                    <Calendar className="w-4 h-4 text-emerald-600 dark:text-neutral-400 shrink-0" />
+                    {user.dob && user.dob.trim() ? (
+                      <span>{user.dob}</span>
+                    ) : (
+                      <span className="text-slate-400 dark:text-neutral-500 italic font-normal text-xs">Not provided</span>
+                    )}
+                  </div>
                 </div>
+                {(!user.dob || !user.dob.trim()) && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(true)}
+                    className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                  >
+                    + Add DOB
+                  </button>
+                )}
               </div>
 
               {/* Place / Location */}
               <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-neutral-900/60 border border-slate-100 dark:border-neutral-800/80 sm:col-span-2 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-slate-400 dark:text-neutral-500 font-medium">Farm Location</span>
-                  <span className="text-[10px] font-mono font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60">
-                    Geographic Region
-                  </span>
+                  {user.district || user.state || user.place ? (
+                    <span className="text-[10px] font-mono font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800/60">
+                      Geographic Region
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(true)}
+                      className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                    >
+                      + Set Location
+                    </button>
+                  )}
                 </div>
                 <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-semibold text-sm">
                   <MapPin className="w-4 h-4 text-emerald-600 dark:text-neutral-400 shrink-0" />
-                  <span>{user.place || formatLocationString(user.country, user.state, user.district, user.village) || 'Andhra Pradesh, India'}</span>
+                  {user.place || formatLocationString(user.country, user.state, user.district, user.village) ? (
+                    <span>{user.place || formatLocationString(user.country, user.state, user.district, user.village)}</span>
+                  ) : (
+                    <span className="text-slate-400 dark:text-neutral-500 italic font-normal text-xs">Not configured yet</span>
+                  )}
                 </div>
                 {/* Visual Location Breakdown Hierarchy Pills */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {user.village && (
-                    <span className="inline-flex items-center text-[11px] font-medium bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-neutral-300">
-                      <span className="text-slate-400 dark:text-neutral-500 mr-1.5">Village:</span> {user.village}
-                    </span>
-                  )}
-                  {user.district && (
-                    <span className="inline-flex items-center text-[11px] font-medium bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-neutral-300">
-                      <span className="text-slate-400 dark:text-neutral-500 mr-1.5">District:</span> {user.district}
-                    </span>
-                  )}
-                  {(user.state || user.place) && (
-                    <span className="inline-flex items-center text-[11px] font-medium bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-neutral-300">
-                      <span className="text-slate-400 dark:text-neutral-500 mr-1.5">State:</span> {user.state || user.place}
-                    </span>
-                  )}
-                  {user.country && (
-                    <span className="inline-flex items-center text-[11px] font-medium bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-neutral-300">
-                      <span className="text-slate-400 dark:text-neutral-500 mr-1.5">Country:</span> {user.country}
-                    </span>
-                  )}
-                </div>
+                {(user.village || user.district || user.state || user.country) && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {user.village && (
+                      <span className="inline-flex items-center text-[11px] font-medium bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-neutral-300">
+                        <span className="text-slate-400 dark:text-neutral-500 mr-1.5">Village:</span> {user.village}
+                      </span>
+                    )}
+                    {user.district && (
+                      <span className="inline-flex items-center text-[11px] font-medium bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-neutral-300">
+                        <span className="text-slate-400 dark:text-neutral-500 mr-1.5">District:</span> {user.district}
+                      </span>
+                    )}
+                    {(user.state || user.place) && (
+                      <span className="inline-flex items-center text-[11px] font-medium bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-neutral-300">
+                        <span className="text-slate-400 dark:text-neutral-500 mr-1.5">State:</span> {user.state || user.place}
+                      </span>
+                    )}
+                    {user.country && (
+                      <span className="inline-flex items-center text-[11px] font-medium bg-white dark:bg-neutral-800 border border-slate-200 dark:border-neutral-700 px-2.5 py-1 rounded-lg text-slate-700 dark:text-neutral-300">
+                        <span className="text-slate-400 dark:text-neutral-500 mr-1.5">Country:</span> {user.country}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -452,20 +531,33 @@ export function ProfilePage() {
                   </div>
                 </div>
 
-                {/* Phone Number */}
+                {/* Phone Number with Country Code */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">
                     Phone Number
                   </label>
-                  <div className="relative">
-                    <Phone className="w-4 h-4 text-slate-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="tel"
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      placeholder="+91 98765 43210"
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
-                    />
+                  <div className="flex rounded-xl border border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-neutral-900 focus-within:ring-2 focus-within:ring-emerald-500 dark:focus-within:ring-white transition-all overflow-hidden">
+                    <select
+                      value={editCountryCode}
+                      onChange={(e) => setEditCountryCode(e.target.value)}
+                      aria-label="Country Dial Code"
+                      className="bg-slate-100 dark:bg-neutral-800 text-slate-800 dark:text-neutral-200 text-xs font-medium px-2.5 py-2.5 border-r border-slate-200 dark:border-neutral-700 focus:outline-none cursor-pointer shrink-0 max-w-[105px]"
+                    >
+                      {COUNTRY_CODES.map((c) => (
+                        <option key={`${c.iso}-${c.code}`} value={c.code} className="bg-white dark:bg-neutral-900 text-slate-900 dark:text-white">
+                          {c.flag} {c.code} ({c.name})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="relative flex-1">
+                      <input
+                        type="tel"
+                        value={editPhoneDigits}
+                        onChange={(e) => setEditPhoneDigits(e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder="9876543210"
+                        className="w-full px-3 py-2.5 bg-transparent text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
 

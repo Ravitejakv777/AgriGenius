@@ -2,8 +2,8 @@ import os
 import time
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, func, text
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, func, text, Float, Boolean, Text, ForeignKey
+from sqlalchemy.orm import declarative_base, sessionmaker, Session, relationship
 
 # Load environment variables from .env
 load_dotenv()
@@ -50,19 +50,76 @@ class User(Base):
     phone = Column(String(50), nullable=True)
     dob = Column(String(50), nullable=True)
     place = Column(String(255), nullable=True)
-    country = Column(String(100), default="India", nullable=True)
+    country = Column(String(100), nullable=True)
     state = Column(String(100), nullable=True)
     district = Column(String(100), nullable=True)
     village = Column(String(150), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+class Report(Base):
+    __tablename__ = "reports"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    report_code = Column(String(50), nullable=True, index=True)
+    title = Column(String(255), nullable=False)
+    farmer_name = Column(String(255), nullable=True)
+    location = Column(String(255), nullable=True)
+    land_acres = Column(Float, nullable=True)
+    soil_type = Column(String(100), nullable=True)
+    water_availability = Column(String(100), nullable=True)
+    previous_crop = Column(String(100), nullable=True)
+    previous_yield = Column(String(100), nullable=True)
+    next_season = Column(String(100), nullable=True)
+    budget = Column(Float, nullable=True)
+    main_objective = Column(String(100), nullable=True)
+    top_crop = Column(String(100), nullable=True)
+    language = Column(String(20), default="en", nullable=True)
+    report_data = Column(Text, nullable=True)  # JSON-encoded report payload
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User", backref="reports")
+
+class ChatHistory(Base):
+    __tablename__ = "chat_histories"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_id = Column(String(100), nullable=True, index=True)
+    query = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    language = Column(String(20), default="auto", nullable=True)
+    confidence = Column(String(20), nullable=True)
+    grounded = Column(Boolean, default=True)
+    sources_json = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User", backref="chat_histories")
+
 def init_db():
     """Create tables if they do not exist and ensure columns exist."""
+    global engine, SessionLocal, db_type, is_postgres
     try:
+        if is_postgres:
+            try:
+                with engine.connect() as test_conn:
+                    test_conn.execute(text("SELECT 1"))
+            except Exception as e:
+                print(f"[Database] Notice: Remote database connection unavailable ({e}). Automatically switching to persistent local SQLite fallback.")
+                fallback_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agrigenius_users.db")
+                engine = create_engine(
+                    f"sqlite:///{fallback_path}",
+                    connect_args={"check_same_thread": False}
+                )
+                SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+                db_type = "SQLite (Local Fallback)"
+                is_postgres = False
+
         Base.metadata.create_all(bind=engine)
         
-        # Ensure additional user fields exist in Neon Postgres
+        # Ensure additional user fields exist
         with engine.connect() as conn:
             columns_to_check = [
                 ("name", "VARCHAR(255)"),
@@ -82,7 +139,6 @@ def init_db():
                         conn.execute(text(f"ALTER TABLE users ADD COLUMN {col_name} {col_type};"))
                     conn.commit()
                 except Exception:
-                    # Column already exists or table is up to date
                     pass
 
         print(f"[Database] Initialized successfully using {db_type}")

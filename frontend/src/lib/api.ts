@@ -126,3 +126,101 @@ export async function streamChatMessage(
     onError(error instanceof Error ? error : new Error('Unable to reach the AgriGenius backend.'));
   }
 }
+
+// ---------------------------------------------------------------------------
+// Reports API (Neon PostgreSQL / Database)
+// ---------------------------------------------------------------------------
+
+export async function saveReportApi(payload: {
+  user_email?: string;
+  user_id?: string;
+  report_code?: string;
+  title: string;
+  farmer_name?: string;
+  location?: string;
+  land_acres?: number;
+  soil_type?: string;
+  water_availability?: string;
+  previous_crop?: string;
+  previous_yield?: string;
+  next_season?: string;
+  budget?: number;
+  main_objective?: string;
+  top_crop?: string;
+  language?: string;
+  report_data?: any;
+}) {
+  const response = await fetch(`${API_BASE_URL}/api/reports`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw await responseError(response);
+  return await response.json();
+}
+
+export async function fetchReportsApi(userEmail?: string, userId?: string) {
+  const params = new URLSearchParams();
+  if (userEmail) params.set('user_email', userEmail);
+  if (userId) params.set('user_id', userId);
+  const response = await fetch(`${API_BASE_URL}/api/reports?${params.toString()}`);
+  if (!response.ok) throw await responseError(response);
+  return await response.json();
+}
+
+export async function deleteReportApi(reportId: number | string, userEmail?: string, userId?: string) {
+  const params = new URLSearchParams();
+  if (userEmail) params.set('user_email', userEmail);
+  if (userId) params.set('user_id', userId);
+  const response = await fetch(`${API_BASE_URL}/api/reports/${reportId}?${params.toString()}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw await responseError(response);
+  return await response.json();
+}
+
+// ---------------------------------------------------------------------------
+// Chat History API (Neon PostgreSQL / Database)
+// ---------------------------------------------------------------------------
+
+export async function saveChatHistoryApi(payload: {
+  user_email?: string;
+  user_id?: string;
+  session_id?: string;
+  query: string;
+  answer: string;
+  language?: string;
+  confidence?: string;
+  grounded?: boolean;
+  sources_json?: any;
+}) {
+  const response = await fetch(`${API_BASE_URL}/api/chat/history`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw await responseError(response);
+  return await response.json();
+}
+
+export async function fetchChatHistoryApi(userEmail?: string, userId?: string) {
+  const params = new URLSearchParams();
+  if (userEmail) params.set('user_email', userEmail);
+  if (userId) params.set('user_id', userId);
+  const response = await fetch(`${API_BASE_URL}/api/chat/history?${params.toString()}`);
+  if (!response.ok) throw await responseError(response);
+  return await response.json();
+}
+
+export async function clearChatHistoryApi(userEmail?: string, userId?: string, historyId?: number) {
+  const params = new URLSearchParams();
+  if (userEmail) params.set('user_email', userEmail);
+  if (userId) params.set('user_id', userId);
+  if (historyId) params.set('history_id', String(historyId));
+  const response = await fetch(`${API_BASE_URL}/api/chat/history?${params.toString()}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw await responseError(response);
+  return await response.json();
+}
+

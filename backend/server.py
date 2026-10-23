@@ -19,7 +19,7 @@ import hashlib
 import requests
 from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.orm import Session
-from backend.database import init_db, get_db, check_db_health, User as DBUser
+from backend.database import init_db, get_db, check_db_health, User as DBUser, Report as DBReport, ChatHistory as DBChatHistory
 from backend.email_service import generate_otp, store_otp, verify_otp_code, send_otp_email, send_welcome_email
 
 app = FastAPI(title="AgriGenius API")
@@ -260,7 +260,7 @@ class AuthRegisterRequest(BaseModel):
     phone: Optional[str] = None
     dob: Optional[str] = None
     place: Optional[str] = None
-    country: Optional[str] = "India"
+    country: Optional[str] = None
     state: Optional[str] = None
     district: Optional[str] = None
     village: Optional[str] = None
@@ -277,7 +277,7 @@ class GoogleSyncRequest(BaseModel):
     phone: Optional[str] = None
     dob: Optional[str] = None
     place: Optional[str] = None
-    country: Optional[str] = "India"
+    country: Optional[str] = None
     state: Optional[str] = None
     district: Optional[str] = None
     village: Optional[str] = None
@@ -291,10 +291,10 @@ class GoogleVerifyRequest(BaseModel):
     role: Optional[str] = "farmer"
     phone: Optional[str] = None
     dob: Optional[str] = None
-    country: Optional[str] = "India"
-    state: Optional[str] = "Andhra Pradesh"
-    district: Optional[str] = "Guntur"
-    village: Optional[str] = "Tenali"
+    country: Optional[str] = None
+    state: Optional[str] = None
+    district: Optional[str] = None
+    village: Optional[str] = None
 
 @app.get("/api/auth/check-user")
 def check_user_exists(email: str, db: Session = Depends(get_db)):
@@ -312,7 +312,7 @@ def check_user_exists(email: str, db: Session = Depends(get_db)):
             "phone": user.phone,
             "dob": user.dob,
             "place": user.place,
-            "country": getattr(user, "country", None) or "India",
+            "country": getattr(user, "country", None) or "",
             "state": getattr(user, "state", None),
             "district": getattr(user, "district", None),
             "village": getattr(user, "village", None)
@@ -442,7 +442,7 @@ def api_update_profile(req: UpdateProfileRequest, db: Session = Depends(get_db))
         "phone": user.phone,
         "dob": user.dob,
         "place": user.place,
-        "country": getattr(user, "country", None) or "India",
+        "country": getattr(user, "country", None) or "",
         "state": getattr(user, "state", None),
         "district": getattr(user, "district", None),
         "village": getattr(user, "village", None),
@@ -488,7 +488,7 @@ def auth_register(req: AuthRegisterRequest, db: Session = Depends(get_db)):
         phone=req.phone,
         dob=req.dob,
         place=computed_place,
-        country=req.country or "India",
+        country=req.country or None,
         state=req.state,
         district=req.district,
         village=req.village,
@@ -512,7 +512,7 @@ def auth_register(req: AuthRegisterRequest, db: Session = Depends(get_db)):
         "phone": user.phone,
         "dob": user.dob,
         "place": user.place,
-        "country": getattr(user, "country", None) or "India",
+        "country": getattr(user, "country", None) or "",
         "state": getattr(user, "state", None),
         "district": getattr(user, "district", None),
         "village": getattr(user, "village", None),
@@ -546,7 +546,7 @@ def auth_login(req: AuthLoginRequest, db: Session = Depends(get_db)):
         "phone": user.phone,
         "dob": user.dob,
         "place": user.place,
-        "country": getattr(user, "country", None) or "India",
+        "country": getattr(user, "country", None) or "",
         "state": getattr(user, "state", None),
         "district": getattr(user, "district", None),
         "village": getattr(user, "village", None),
@@ -603,13 +603,13 @@ def auth_google_sync(req: GoogleSyncRequest, db: Session = Depends(get_db)):
             name=clean_name,
             email=clean_email,
             password_hash=pwd_hash or hashlib.sha256(b"google_oauth_account").hexdigest(),
-            phone=req.phone,
-            dob=req.dob,
-            place=computed_place,
-            country=req.country or "India",
-            state=req.state,
-            district=req.district,
-            village=req.village,
+            phone=req.phone or None,
+            dob=req.dob or None,
+            place=computed_place or None,
+            country=req.country or None,
+            state=req.state or None,
+            district=req.district or None,
+            village=req.village or None,
             role=req.role or "farmer"
         )
         db.add(user)
@@ -626,13 +626,13 @@ def auth_google_sync(req: GoogleSyncRequest, db: Session = Depends(get_db)):
         "username": user.username,
         "name": user.name,
         "email": user.email,
-        "phone": user.phone,
-        "dob": user.dob,
-        "place": user.place,
-        "country": getattr(user, "country", None) or "India",
-        "state": getattr(user, "state", None),
-        "district": getattr(user, "district", None),
-        "village": getattr(user, "village", None),
+        "phone": user.phone or "",
+        "dob": user.dob or "",
+        "place": user.place or "",
+        "country": getattr(user, "country", None) or "",
+        "state": getattr(user, "state", None) or "",
+        "district": getattr(user, "district", None) or "",
+        "village": getattr(user, "village", None) or "",
         "role": user.role
     }
 
@@ -702,11 +702,9 @@ def auth_google_verify(req: GoogleVerifyRequest, db: Session = Depends(get_db)):
     user = db.query(DBUser).filter(DBUser.email == clean_email).first()
     is_new = False
 
-    computed_country = req.country or "India"
-    computed_state = req.state or "Andhra Pradesh"
-    computed_district = req.district or "Guntur"
-    computed_village = req.village or "Tenali"
-    computed_place = f"{computed_village}, {computed_district}, {computed_state}, {computed_country}"
+    # Location is only computed if explicitly provided by the user; never auto-assigned
+    location_parts = [p for p in [req.village, req.district, req.state, req.country] if p and p.strip()]
+    computed_place = ", ".join(location_parts) if location_parts else None
 
     if not user:
         is_new = True
@@ -723,12 +721,12 @@ def auth_google_verify(req: GoogleVerifyRequest, db: Session = Depends(get_db)):
             email=clean_email,
             password_hash=hashlib.sha256(b"google_oauth_verified").hexdigest(),
             role=req.role or ("admin" if "admin" in clean_email else "farmer"),
-            phone=req.phone or "+91 98765 43210",
-            dob=req.dob or "15/08/1995",
-            country=computed_country,
-            state=computed_state,
-            district=computed_district,
-            village=computed_village,
+            phone=req.phone or None,
+            dob=req.dob or None,
+            country=req.country or None,
+            state=req.state or None,
+            district=req.district or None,
+            village=req.village or None,
             place=computed_place
         )
         db.add(user)
@@ -748,6 +746,24 @@ def auth_google_verify(req: GoogleVerifyRequest, db: Session = Depends(get_db)):
         if req.phone and not user.phone:
             user.phone = req.phone
             updated = True
+        if req.dob and not user.dob:
+            user.dob = req.dob
+            updated = True
+        if req.country and not user.country:
+            user.country = req.country
+            updated = True
+        if req.state and not user.state:
+            user.state = req.state
+            updated = True
+        if req.district and not user.district:
+            user.district = req.district
+            updated = True
+        if req.village and not user.village:
+            user.village = req.village
+            updated = True
+        if computed_place and not user.place:
+            user.place = computed_place
+            updated = True
         if updated:
             db.commit()
             db.refresh(user)
@@ -763,13 +779,13 @@ def auth_google_verify(req: GoogleVerifyRequest, db: Session = Depends(get_db)):
             "username": user.username,
             "name": user.name or user.username,
             "email": user.email,
-            "phone": user.phone or "+91 98765 43210",
-            "dob": user.dob or "15/08/1995",
-            "place": user.place or computed_place,
-            "country": getattr(user, "country", None) or computed_country,
-            "state": getattr(user, "state", None) or computed_state,
-            "district": getattr(user, "district", None) or computed_district,
-            "village": getattr(user, "village", None) or computed_village,
+            "phone": user.phone or "",
+            "dob": user.dob or "",
+            "place": user.place or "",
+            "country": getattr(user, "country", None) or "",
+            "state": getattr(user, "state", None) or "",
+            "district": getattr(user, "district", None) or "",
+            "village": getattr(user, "village", None) or "",
             "role": user.role or "farmer",
             "avatar": avatar_url,
             "organization": "Google Verified Account"
@@ -917,5 +933,276 @@ def delete_admin_user(user_id: int, db: Session = Depends(get_db)):
     db.delete(user)
     db.commit()
     return {"status": "deleted", "id": user_id}
+
+# ============================================================================
+# PERSISTENT REPORTS & CHAT HISTORIES FOR REGISTERED PROFILES
+# ============================================================================
+
+def resolve_authenticated_user(db: Session, user_id: Optional[Any] = None, user_email: Optional[str] = None) -> DBUser:
+    """Resolve an authenticated user from database by email or ID."""
+    user = None
+    if user_email and user_email.strip():
+        clean_email = user_email.strip().lower()
+        user = db.query(DBUser).filter(DBUser.email == clean_email).first()
+
+    if not user and user_id is not None:
+        # Handle formats like "usr_12" or 12
+        raw_id = str(user_id)
+        if raw_id.startswith("usr_"):
+            raw_id = raw_id.replace("usr_", "")
+        if raw_id.isdigit():
+            user = db.query(DBUser).filter(DBUser.id == int(raw_id)).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Sign up or login required. Create an account to access, generate and save advisory reports and chat history."
+        )
+    return user
+
+class ReportSaveRequest(BaseModel):
+    user_id: Optional[Any] = None
+    user_email: Optional[str] = None
+    report_code: Optional[str] = None
+    title: str
+    farmer_name: Optional[str] = None
+    location: Optional[str] = None
+    land_acres: Optional[float] = None
+    soil_type: Optional[str] = None
+    water_availability: Optional[str] = None
+    previous_crop: Optional[str] = None
+    previous_yield: Optional[str] = None
+    next_season: Optional[str] = None
+    budget: Optional[float] = None
+    main_objective: Optional[str] = None
+    top_crop: Optional[str] = None
+    language: Optional[str] = "en"
+    report_data: Optional[Any] = None
+
+class ChatHistorySaveRequest(BaseModel):
+    user_id: Optional[Any] = None
+    user_email: Optional[str] = None
+    session_id: Optional[str] = None
+    query: str
+    answer: str
+    language: Optional[str] = "auto"
+    confidence: Optional[str] = None
+    grounded: Optional[bool] = True
+    sources_json: Optional[Any] = None
+
+@app.post("/api/reports")
+def save_user_report(req: ReportSaveRequest, db: Session = Depends(get_db)):
+    """Save an agronomic recommendation report to the database for an authenticated user."""
+    user = resolve_authenticated_user(db, req.user_id, req.user_email)
+
+    # Encode report_data if dict or list
+    data_str = None
+    if req.report_data is not None:
+        if isinstance(req.report_data, str):
+            data_str = req.report_data
+        else:
+            data_str = json.dumps(req.report_data)
+
+    report = DBReport(
+        user_id=user.id,
+        report_code=req.report_code or f"REP-{int(time.time())}",
+        title=req.title,
+        farmer_name=req.farmer_name or user.name or user.username,
+        location=req.location or user.place or user.district or None,
+        land_acres=req.land_acres,
+        soil_type=req.soil_type,
+        water_availability=req.water_availability,
+        previous_crop=req.previous_crop,
+        previous_yield=req.previous_yield,
+        next_season=req.next_season,
+        budget=req.budget,
+        main_objective=req.main_objective,
+        top_crop=req.top_crop,
+        language=req.language or "en",
+        report_data=data_str
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    parsed_data = None
+    if report.report_data:
+        try:
+            parsed_data = json.loads(report.report_data)
+        except Exception:
+            parsed_data = report.report_data
+
+    return {
+        "id": report.id,
+        "user_id": report.user_id,
+        "report_code": report.report_code,
+        "title": report.title,
+        "farmer_name": report.farmer_name,
+        "location": report.location,
+        "land_acres": report.land_acres,
+        "soil_type": report.soil_type,
+        "water_availability": report.water_availability,
+        "previous_crop": report.previous_crop,
+        "previous_yield": report.previous_yield,
+        "next_season": report.next_season,
+        "budget": report.budget,
+        "main_objective": report.main_objective,
+        "top_crop": report.top_crop,
+        "language": report.language,
+        "report_data": parsed_data,
+        "created_at": report.created_at.isoformat() if report.created_at else None
+    }
+
+@app.get("/api/reports")
+def get_user_reports(
+    user_email: Optional[str] = None,
+    user_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Retrieve all saved reports for the authenticated user."""
+    user = resolve_authenticated_user(db, user_id, user_email)
+
+    reports = db.query(DBReport).filter(DBReport.user_id == user.id).order_by(DBReport.created_at.desc()).all()
+    results = []
+    for r in reports:
+        parsed_data = None
+        if r.report_data:
+            try:
+                parsed_data = json.loads(r.report_data)
+            except Exception:
+                parsed_data = r.report_data
+
+        results.append({
+            "id": r.id,
+            "user_id": r.user_id,
+            "report_code": r.report_code,
+            "title": r.title,
+            "farmer_name": r.farmer_name,
+            "location": r.location,
+            "land_acres": r.land_acres,
+            "soil_type": r.soil_type,
+            "water_availability": r.water_availability,
+            "previous_crop": r.previous_crop,
+            "previous_yield": r.previous_yield,
+            "next_season": r.next_season,
+            "budget": r.budget,
+            "main_objective": r.main_objective,
+            "top_crop": r.top_crop,
+            "language": r.language,
+            "report_data": parsed_data,
+            "created_at": r.created_at.isoformat() if r.created_at else None
+        })
+    return results
+
+@app.delete("/api/reports/{report_id}")
+def delete_user_report(
+    report_id: int,
+    user_email: Optional[str] = None,
+    user_id: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """Delete a saved report by ID."""
+    user = resolve_authenticated_user(db, user_id, user_email)
+
+    report = db.query(DBReport).filter(DBReport.id == report_id, DBReport.user_id == user.id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found or not owned by user.")
+
+    db.delete(report)
+    db.commit()
+    return {"status": "deleted", "id": report_id}
+
+@app.post("/api/chat/history")
+def save_chat_history(req: ChatHistorySaveRequest, db: Session = Depends(get_db)):
+    """Save an AI consultation question and answer into the user's persistent history."""
+    user = resolve_authenticated_user(db, req.user_id, req.user_email)
+
+    sources_str = None
+    if req.sources_json is not None:
+        if isinstance(req.sources_json, str):
+            sources_str = req.sources_json
+        else:
+            sources_str = json.dumps(req.sources_json)
+
+    item = DBChatHistory(
+        user_id=user.id,
+        session_id=req.session_id,
+        query=req.query,
+        answer=req.answer,
+        language=req.language or "auto",
+        confidence=req.confidence,
+        grounded=req.grounded if req.grounded is not None else True,
+        sources_json=sources_str
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+
+    return {
+        "id": item.id,
+        "user_id": item.user_id,
+        "status": "saved",
+        "created_at": item.created_at.isoformat() if item.created_at else None
+    }
+
+@app.get("/api/chat/history")
+def get_chat_history(
+    user_email: Optional[str] = None,
+    user_id: Optional[str] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """Get chat histories for the authenticated user."""
+    user = resolve_authenticated_user(db, user_id, user_email)
+
+    items = db.query(DBChatHistory).filter(
+        DBChatHistory.user_id == user.id
+    ).order_by(DBChatHistory.created_at.desc()).limit(limit).all()
+
+    results = []
+    for it in items:
+        sources_data = []
+        if it.sources_json:
+            try:
+                sources_data = json.loads(it.sources_json)
+            except Exception:
+                sources_data = []
+
+        results.append({
+            "id": it.id,
+            "user_id": it.user_id,
+            "session_id": it.session_id,
+            "query": it.query,
+            "answer": it.answer,
+            "language": it.language,
+            "confidence": it.confidence,
+            "grounded": it.grounded,
+            "sources": sources_data,
+            "created_at": it.created_at.isoformat() if it.created_at else None
+        })
+    return results
+
+@app.delete("/api/chat/history")
+def clear_chat_history(
+    user_email: Optional[str] = None,
+    user_id: Optional[str] = None,
+    history_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """Clear chat histories for the authenticated user, or delete single entry if history_id is provided."""
+    user = resolve_authenticated_user(db, user_id, user_email)
+
+    if history_id:
+        item = db.query(DBChatHistory).filter(DBChatHistory.id == history_id, DBChatHistory.user_id == user.id).first()
+        if item:
+            db.delete(item)
+            db.commit()
+            return {"status": "deleted", "id": history_id}
+        raise HTTPException(status_code=404, detail="Chat entry not found.")
+
+    db.query(DBChatHistory).filter(DBChatHistory.user_id == user.id).delete()
+    db.commit()
+    return {"status": "cleared", "user_id": user.id}
+
 
 

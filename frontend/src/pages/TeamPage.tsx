@@ -20,57 +20,96 @@ import {
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../context/AuthContext';
 
+function GithubIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
+    </svg>
+  );
+}
+
+function LinkedinIcon({ className = "w-3.5 h-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z"/>
+    </svg>
+  );
+}
+
 export interface TeamMember {
   id: string;
   name: string;
+  shortName?: string;
   rollNumber: string;
   branch: string;
   phoneNumber: string;
   photo: string;
   role: string;
   bio: string;
+  github?: string;
+  linkedin?: string;
 }
+
+export const getMemberDisplayName = (m: TeamMember): string => {
+  if (m.shortName) return m.shortName;
+  const lower = m.name.toLowerCase();
+  if (lower.includes('kona') || lower.includes('ravi')) return 'Ravi';
+  if (lower.includes('vadlamudi') || lower.includes('mokshagnna')) return 'Mokshagnna';
+  return m.name.split(' ')[0];
+};
 
 const DEFAULT_TEAM: TeamMember[] = [
   {
     id: 'member-1',
     name: 'Kona Venkata Ravi Teja',
+    shortName: 'Ravi',
     rollNumber: 'CB.SC.U4CSE24327',
     branch: 'Computer Science & Engineering',
     phoneNumber: '+91 98765 43210',
     photo: '/team/member1.jpg',
     role: 'Frontend/3D Architect',
     bio: 'Architected the 3D grounded knowledge wheel and interactive web interface.',
+    github: 'https://github.com/Ravitejakv777',
+    linkedin: 'https://linkedin.com/in/ravitejakona',
   },
   {
     id: 'member-2',
     name: 'Tejasvi S',
+    shortName: 'Tejasvi',
     rollNumber: 'CB.SC.U4CSE24350',
     branch: 'Computer Science & Engineering',
     phoneNumber: '+91 8668110993',
     photo: '/team/member2.jpeg',
     role: 'RAG Pipeline & Neural Retrieval Lead',
     bio: 'Engineered the multilingual RAG retriever over the local KCC advisory index.',
+    github: 'https://github.com/TejasviSenka',
+    linkedin: 'https://linkedin.com/in/tejasvi-s',
   },
   {
     id: 'member-3',
     name: 'Rushil T',
+    shortName: 'Rushil',
     rollNumber: 'CB.SC.U4CSE24351',
     branch: 'Computer Science & Engineering',
     phoneNumber: '+91 8179610899',
     photo: '/team/member3.jpg',
     role: 'Backend Services & FastAPI Specialist',
     bio: 'Developed high-throughput streaming endpoints and vector database indices.',
+    github: 'https://github.com/rushil-thumpera',
+    linkedin: 'https://linkedin.com/in/rushil-thumpera',
   },
   {
     id: 'member-4',
     name: 'Vadlamudi Mokshagnna Bramha Teja',
+    shortName: 'Mokshagnna',
     rollNumber: 'CB.SC.U4CSE24353',
     branch: 'Computer Science & Engineering',
     phoneNumber: '+91 6301465515',
     photo: '/team/member4.jpg',
     role: 'Evaluation Metrics & Dataset Verification',
     bio: 'Curated scientific agronomy dosage guidelines and evaluation benchmarks.',
+    github: 'https://github.com/Sunny77711',
+    linkedin: 'https://linkedin.com/in/mokshagnna-teja',
   },
 ];
 
@@ -87,7 +126,7 @@ export function TeamPage() {
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
     try {
-      const saved = localStorage.getItem('agrigenius_team_members_v2');
+      const saved = localStorage.getItem('agrigenius_team_members_v3');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (
@@ -99,6 +138,8 @@ export function TeamPage() {
             ...DEFAULT_TEAM[idx],
             ...m,
             photo: m.photo || DEFAULT_TEAM[idx].photo,
+            github: m.github || DEFAULT_TEAM[idx].github,
+            linkedin: m.linkedin || DEFAULT_TEAM[idx].linkedin,
           }));
         }
       }
@@ -142,7 +183,7 @@ export function TeamPage() {
     const updated = teamMembers.map((m) => (m.id === editingForm.id ? editingForm : m));
     setTeamMembers(updated);
     try {
-      localStorage.setItem('agrigenius_team_members', JSON.stringify(updated));
+      localStorage.setItem('agrigenius_team_members_v3', JSON.stringify(updated));
     } catch (err) {
       console.error(err);
     }
@@ -153,6 +194,8 @@ export function TeamPage() {
     if (confirm('Reset all team details back to original defaults?')) {
       setTeamMembers(DEFAULT_TEAM);
       try {
+        localStorage.removeItem('agrigenius_team_members_v3');
+        localStorage.removeItem('agrigenius_team_members_v2');
         localStorage.removeItem('agrigenius_team_members');
       } catch (err) {
         console.error(err);
@@ -316,11 +359,37 @@ export function TeamPage() {
                         <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
                       </div>
 
-                      {/* Polaroid Bottom Caption: Clear Person Name */}
-                      <div className="pt-2 text-center px-1">
+                      {/* Polaroid Bottom Caption: Clear Person Name & Social Icons */}
+                      <div className="pt-1.5 text-center px-1">
                         <span className="font-sans text-[11px] sm:text-xs font-bold text-neutral-900 tracking-tight block truncate">
                           {member.name}
                         </span>
+                        <div className="flex items-center justify-center gap-1.5 mt-1">
+                          {member.github && (
+                            <a
+                              href={member.github}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors"
+                              title={`${member.name}'s GitHub`}
+                            >
+                              <GithubIcon className="w-3 h-3" />
+                            </a>
+                          )}
+                          {member.linkedin && (
+                            <a
+                              href={member.linkedin}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-1 rounded-md bg-sky-50 hover:bg-sky-100 text-[#0077b5] transition-colors"
+                              title={`${member.name}'s LinkedIn`}
+                            >
+                              <LinkedinIcon className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -347,7 +416,7 @@ export function TeamPage() {
                       : 'bg-white/80 dark:bg-neutral-900/80 text-slate-600 dark:text-neutral-400 border border-slate-200/80 dark:border-neutral-800 hover:bg-slate-100 dark:hover:bg-neutral-800'
                   }`}
                 >
-                  <span>{m.name.split(' ')[0]}</span>
+                  <span>{getMemberDisplayName(m)}</span>
                 </button>
               );
             })}
@@ -517,6 +586,111 @@ export function TeamPage() {
                     </div>
                   </div>
 
+                  {/* GitHub & LinkedIn Profiles Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pb-2.5">
+                    {/* GitHub Card */}
+                    <div className="bg-slate-50 dark:bg-black/50 p-2.5 rounded-xl border border-slate-200/70 dark:border-neutral-800 flex items-center justify-between">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <div className="p-1.5 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-black shrink-0">
+                          <GithubIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400 dark:text-neutral-400 font-bold block">
+                            GitHub Profile
+                          </span>
+                          {activeMember.github ? (
+                            <a
+                              href={activeMember.github}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-mono font-bold text-slate-800 dark:text-neutral-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline truncate block"
+                            >
+                              {activeMember.github.replace('https://github.com/', '@')}
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">Not added</span>
+                          )}
+                        </div>
+                      </div>
+                      {activeMember.github && (
+                        <div className="flex items-center space-x-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(activeMember.github!, `gh-${activeMember.id}`)}
+                            className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-neutral-800 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                            title="Copy GitHub link"
+                          >
+                            {copiedField === `gh-${activeMember.id}` ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-500 dark:text-white" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                          <a
+                            href={activeMember.github}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-slate-600 dark:text-neutral-300 hover:text-slate-900 dark:hover:text-white transition-colors text-xs font-bold"
+                            title="Open GitHub"
+                          >
+                            &rarr;
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* LinkedIn Card */}
+                    <div className="bg-slate-50 dark:bg-black/50 p-2.5 rounded-xl border border-slate-200/70 dark:border-neutral-800 flex items-center justify-between">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <div className="p-1.5 rounded-lg bg-[#0077b5] text-white shrink-0">
+                          <LinkedinIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[9px] font-mono uppercase tracking-wider text-slate-400 dark:text-neutral-400 font-bold block">
+                            LinkedIn Profile
+                          </span>
+                          {activeMember.linkedin ? (
+                            <a
+                              href={activeMember.linkedin}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-mono font-bold text-[#0077b5] dark:text-sky-400 hover:underline truncate block"
+                            >
+                              {activeMember.linkedin.replace('https://linkedin.com/in/', 'in/').replace('https://www.linkedin.com/in/', 'in/')}
+                            </a>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">Not added</span>
+                          )}
+                        </div>
+                      </div>
+                      {activeMember.linkedin && (
+                        <div className="flex items-center space-x-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(activeMember.linkedin!, `li-${activeMember.id}`)}
+                            className="p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-neutral-800 text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors cursor-pointer"
+                            title="Copy LinkedIn link"
+                          >
+                            {copiedField === `li-${activeMember.id}` ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-500 dark:text-white" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                          <a
+                            href={activeMember.linkedin}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-[#0077b5] dark:text-sky-400 transition-colors text-xs font-bold"
+                            title="Open LinkedIn"
+                          >
+                            &rarr;
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Bio summary */}
                   {activeMember.bio && activeMember.bio.trim().length > 0 && (
                     <div className="pt-2 border-t border-slate-100 dark:border-neutral-800/80 text-[11px] text-slate-500 dark:text-neutral-400 leading-relaxed italic truncate">
@@ -592,6 +766,36 @@ export function TeamPage() {
                       type="text"
                       value={editingForm.phoneNumber}
                       onChange={(e) => setEditingForm({ ...editingForm, phoneNumber: e.target.value })}
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/80 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* GitHub & LinkedIn Profile URL inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-neutral-400 block mb-1 flex items-center space-x-1.5">
+                      <GithubIcon className="w-3.5 h-3.5 text-slate-700 dark:text-neutral-300" />
+                      <span>GitHub Profile URL</span>
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://github.com/username"
+                      value={editingForm.github || ''}
+                      onChange={(e) => setEditingForm({ ...editingForm, github: e.target.value })}
+                      className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/80 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 dark:text-neutral-400 block mb-1 flex items-center space-x-1.5">
+                      <LinkedinIcon className="w-3.5 h-3.5 text-[#0077b5]" />
+                      <span>LinkedIn Profile URL</span>
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://linkedin.com/in/username"
+                      value={editingForm.linkedin || ''}
+                      onChange={(e) => setEditingForm({ ...editingForm, linkedin: e.target.value })}
                       className="w-full px-3 py-2 text-xs sm:text-sm rounded-xl border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/80 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
                     />
                   </div>

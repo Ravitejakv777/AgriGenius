@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import type { Message } from '../lib/types';
-import { User, Sparkles, AlertTriangle, Copy, Check, Volume2, VolumeX, ShieldCheck, FileText } from 'lucide-react';
+import { User, Sparkles, AlertTriangle, Copy, Check, Volume2, VolumeX, ShieldCheck, FileText, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface ChatMessageProps {
   message: Message;
   onOpenSources?: () => void;
+  onDelete?: () => void;
 }
 
-export function ChatMessage({ message, onOpenSources }: ChatMessageProps) {
+export function ChatMessage({ message, onOpenSources, onDelete }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -111,7 +112,7 @@ export function ChatMessage({ message, onOpenSources }: ChatMessageProps) {
       initial={{ opacity: 0, scale: 0.97, y: 16 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{ duration: 0.35, type: 'spring', bounce: 0.15 }}
-      className={`py-3 px-2 sm:px-4 flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}
+      className={`py-3 px-2 sm:px-4 flex w-full group ${isUser ? 'justify-end' : 'justify-start'}`}
     >
       <div className={`flex gap-3 max-w-3xl w-full ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
         {/* Avatar */}
@@ -145,6 +146,19 @@ export function ChatMessage({ message, onOpenSources }: ChatMessageProps) {
             )}
           </div>
 
+          {/* User Message Action / Delete */}
+          {isUser && onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="opacity-0 group-hover:opacity-100 flex items-center space-x-1 text-[10px] text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-all cursor-pointer px-1.5 py-0.5 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40"
+              title="Delete this message"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>Delete</span>
+            </button>
+          )}
+
           {/* Assistant Action Bar & Grounding Pill */}
           {!isUser && message.content && (
             <div className="flex items-center gap-2 text-xs flex-wrap pt-0.5">
@@ -167,6 +181,19 @@ export function ChatMessage({ message, onOpenSources }: ChatMessageProps) {
                   </>
                 )}
               </button>
+
+              {/* Delete Message Button */}
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-neutral-800/80 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-600 dark:text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center space-x-1.5 transition-colors cursor-pointer text-[11px] font-medium"
+                  title="Delete this message"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Delete</span>
+                </button>
+              )}
 
               {/* Text to Speech Button */}
               <button

@@ -8,7 +8,6 @@ import {
   ArrowRight, 
   Lock, 
   Mail, 
-  Phone,
   Calendar,
   User as UserIcon, 
   CheckCircle2, 
@@ -20,8 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuth, type UserRole } from '../context/AuthContext';
 import { ThemeToggle } from '../components/ThemeToggle';
-import { CascadingLocationPicker } from '../components/CascadingLocationPicker';
-import { formatLocationString } from '../lib/locationData';
+import { COUNTRY_CODES, formatPhoneWithCountryCode } from '../lib/countryCodes';
 
 // Global declaration for official Google Identity Services SDK
 declare global {
@@ -69,14 +67,10 @@ export function AuthPage() {
   // signupStep: 'method' | 'otp' | 'password'
   const [signupStep, setSignupStep] = useState<'method' | 'otp' | 'password'>('method');
   const [signupName, setSignupName] = useState('');
+  const [signupCountryCode, setSignupCountryCode] = useState('+91');
   const [signupPhone, setSignupPhone] = useState('');
   const [signupDob, setSignupDob] = useState('');
   
-  // Cascading Location Hierarchy state
-  const [signupCountry, setSignupCountry] = useState('India');
-  const [signupState, setSignupState] = useState('Andhra Pradesh');
-  const [signupDistrict, setSignupDistrict] = useState('Guntur');
-  const [signupVillage, setSignupVillage] = useState('Amaravati');
 
   const [signupEmail, setSignupEmail] = useState('');
   const [enteredOtp, setEnteredOtp] = useState('');
@@ -173,12 +167,12 @@ export function AuthPage() {
     try {
       setIsLoading(true);
 
+      const fullPhone = signupPhone.trim() ? formatPhoneWithCountryCode(signupCountryCode, signupPhone) : undefined;
+
       const res = await loginWithGoogleToken({
         ...payload,
-        country: signupCountry,
-        state: signupState,
-        district: signupDistrict,
-        village: signupVillage,
+        phone: fullPhone,
+        dob: signupDob.trim() || undefined,
         role: 'farmer'
       });
 
@@ -291,10 +285,6 @@ export function AuthPage() {
       setStatusMessage({ type: 'error', text: 'Please enter your date of birth.' });
       return;
     }
-    if (!signupCountry || !signupState || !signupDistrict || !signupVillage) {
-      setStatusMessage({ type: 'error', text: 'Please select your complete location (Country, State, District, Village).' });
-      return;
-    }
     if (!emailTrim || !emailTrim.includes('@') || !emailTrim.includes('.')) {
       setStatusMessage({ type: 'error', text: 'Please enter a valid email address.' });
       return;
@@ -392,19 +382,19 @@ export function AuthPage() {
 
     try {
       const role: UserRole = 'farmer';
-      const finalPlace = formatLocationString(signupCountry, signupState, signupDistrict, signupVillage);
+      const fullPhone = formatPhoneWithCountryCode(signupCountryCode, signupPhone);
 
       await signup({
         name: signupName.trim(),
         email: signupEmail.trim(),
         password: newPassword.trim(),
-        phone: signupPhone.trim(),
+        phone: fullPhone,
         dob: signupDob.trim(),
-        country: signupCountry,
-        state: signupState,
-        district: signupDistrict,
-        village: signupVillage,
-        place: finalPlace,
+        country: '',
+        state: '',
+        district: '',
+        village: '',
+        place: '',
         role,
         avatar: '',
         organization: 'Agricultural Cooperative'
@@ -718,23 +708,36 @@ export function AuthPage() {
                       </div>
                     </div>
 
-                    {/* Phone Number & DOB */}
+                    {/* Phone Number with Country Code & DOB */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {/* Phone Number */}
+                      {/* Phone Number with Country Code */}
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300 mb-1.5">
                           Phone Number
                         </label>
-                        <div className="relative">
-                          <Phone className="w-4 h-4 text-slate-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="tel"
-                            required
-                            value={signupPhone}
-                            onChange={(e) => setSignupPhone(e.target.value)}
-                            placeholder="+91 98765 43210"
-                            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-white transition-all"
-                          />
+                        <div className="flex rounded-xl border border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-neutral-900 focus-within:ring-2 focus-within:ring-emerald-500 dark:focus-within:ring-white transition-all overflow-hidden">
+                          <select
+                            value={signupCountryCode}
+                            onChange={(e) => setSignupCountryCode(e.target.value)}
+                            aria-label="Country Dial Code"
+                            className="bg-slate-100 dark:bg-neutral-800 text-slate-800 dark:text-neutral-200 text-xs font-medium px-2.5 py-2.5 border-r border-slate-200 dark:border-neutral-700 focus:outline-none cursor-pointer shrink-0 max-w-[105px]"
+                          >
+                            {COUNTRY_CODES.map((c) => (
+                              <option key={`${c.iso}-${c.code}`} value={c.code} className="bg-white dark:bg-neutral-900 text-slate-900 dark:text-white">
+                                {c.flag} {c.code} ({c.name})
+                              </option>
+                            ))}
+                          </select>
+                          <div className="relative flex-1">
+                            <input
+                              type="tel"
+                              required
+                              value={signupPhone}
+                              onChange={(e) => setSignupPhone(e.target.value.replace(/[^0-9]/g, ''))}
+                              placeholder="9876543210"
+                              className="w-full px-3 py-2.5 bg-transparent text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-neutral-600 focus:outline-none"
+                            />
+                          </div>
                         </div>
                       </div>
 
@@ -744,7 +747,7 @@ export function AuthPage() {
                           Date of Birth (DOB)
                         </label>
                         <div className="relative">
-                          <Calendar className="w-4 h-4 text-slate-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                          <Calendar className="w-4 h-4 text-slate-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                           <input
                             type="date"
                             required
@@ -754,28 +757,6 @@ export function AuthPage() {
                           />
                         </div>
                       </div>
-                    </div>
-
-                    {/* Cascading Location Hierarchy (Country -> State -> District -> Village) */}
-                    <div className="pt-2 border-t border-slate-100 dark:border-neutral-800">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <label className="block text-xs font-semibold text-slate-700 dark:text-neutral-300">
-                          Farm Location (Country &rarr; State &rarr; District &rarr; Village)
-                        </label>
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Cascading Dropdowns</span>
-                      </div>
-                      <CascadingLocationPicker
-                        country={signupCountry}
-                        state={signupState}
-                        district={signupDistrict}
-                        village={signupVillage}
-                        onChange={(loc) => {
-                          setSignupCountry(loc.country);
-                          setSignupState(loc.state);
-                          setSignupDistrict(loc.district);
-                          setSignupVillage(loc.village);
-                        }}
-                      />
                     </div>
 
                     {/* Email Address */}

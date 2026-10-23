@@ -111,9 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (parsed.avatar && parsed.avatar.includes('unsplash.com')) {
           parsed.avatar = '';
         }
-        if (!parsed.phone) parsed.phone = '+91 98765 43210';
-        if (!parsed.dob) parsed.dob = '15/08/1995';
-        if (!parsed.place) parsed.place = parsed.state || 'Andhra Pradesh, India';
+        // Do not force fake phone, dob, or location on users
         return parsed;
       }
     } catch {
@@ -151,8 +149,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         phone: dbUser.phone,
         dob: dbUser.dob,
         place: dbUser.place,
-        country: dbUser.country || 'India',
-        state: dbUser.state || dbUser.place || 'All India',
+        country: dbUser.country || '',
+        state: dbUser.state || dbUser.place || '',
         district: dbUser.district || '',
         village: dbUser.village || '',
         role: (dbUser.role as UserRole) || role,
@@ -178,7 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         phone: userData.phone,
         dob: userData.dob,
         place: userData.place,
-        country: userData.country || 'India',
+        country: userData.country || '',
         state: userData.state,
         district: userData.district,
         village: userData.village,
@@ -196,7 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         phone: saved.phone || userData.phone,
         dob: saved.dob || userData.dob,
         place: saved.place || userData.place,
-        country: saved.country || userData.country || 'India',
+        country: saved.country || userData.country || '',
         state: saved.state || userData.state,
         district: saved.district || userData.district,
         village: saved.village || userData.village,
@@ -254,13 +252,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: `usr_${dbUser.id}`,
       name: dbUser.name || dbUser.username,
       email: dbUser.email,
-      phone: dbUser.phone || '+91 98765 43210',
-      dob: dbUser.dob || '15/08/1995',
-      place: dbUser.place || 'Andhra Pradesh, India',
-      country: dbUser.country || 'India',
-      state: dbUser.state || 'Andhra Pradesh',
-      district: dbUser.district || 'Guntur',
-      village: dbUser.village || 'Tenali',
+      phone: dbUser.phone || '',
+      dob: dbUser.dob || '',
+      place: dbUser.place || '',
+      country: dbUser.country || '',
+      state: dbUser.state || '',
+      district: dbUser.district || '',
+      village: dbUser.village || '',
       role: (dbUser.role as UserRole) || payload.role || 'farmer',
       organization: 'Google Verified Account',
       avatar: dbUser.avatar || ''
@@ -297,7 +295,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       phone: customAccount?.phone,
       dob: customAccount?.dob,
       place: customAccount?.place,
-      country: customAccount?.country || 'India',
+      country: customAccount?.country || '',
       state: customAccount?.state,
       district: customAccount?.district,
       village: customAccount?.village
@@ -369,7 +367,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         phone: updated.phone || updatedData.phone || user.phone,
         dob: updated.dob || updatedData.dob || user.dob,
         place: updated.place || updatedData.place || user.place,
-        country: updated.country || updatedData.country || user.country || 'India',
+        country: updated.country || updatedData.country || user.country || '',
         state: updated.state || updatedData.state || user.state,
         district: updated.district || updatedData.district || user.district,
         village: updated.village || updatedData.village || user.village,
