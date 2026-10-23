@@ -14,9 +14,11 @@ import {
   Edit3,
   X,
   Save,
-  RotateCcw
+  RotateCcw,
+  User
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { useAuth } from '../context/AuthContext';
 
 export interface TeamMember {
   id: string;
@@ -81,6 +83,7 @@ const FAN_CONFIG = [
 
 export function TeamPage() {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
     try {
@@ -197,7 +200,25 @@ export function TeamPage() {
             </div>
 
             {/* Quick Actions & Theme Toggle */}
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3">
+              <button
+                type="button"
+                onClick={() => navigate(isAuthenticated ? '/profile' : '/auth')}
+                className="inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-bold text-slate-700 dark:text-neutral-200 bg-slate-100 hover:bg-slate-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-xl border border-slate-200 dark:border-neutral-800 transition-all cursor-pointer"
+                title={isAuthenticated ? "View Profile" : "Sign In / Login"}
+              >
+                {isAuthenticated ? (
+                  <>
+                    <User className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-white" />
+                    <span>Profile</span>
+                  </>
+                ) : (
+                  <>
+                    <User className="w-3.5 h-3.5 mr-1 text-slate-500 dark:text-neutral-400" />
+                    <span>Sign In</span>
+                  </>
+                )}
+              </button>
               <ThemeToggle />
               <button
                 onClick={() => navigate('/chat')}

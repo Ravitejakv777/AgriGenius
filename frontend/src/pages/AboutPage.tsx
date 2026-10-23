@@ -1,12 +1,14 @@
 import { StatusPanel } from '../components/StatusPanel';
 import { EvaluationPanel } from '../components/EvaluationPanel';
 import { useNavigate } from 'react-router-dom';
-import { Leaf, Server, Activity, Shield } from 'lucide-react';
+import { Leaf, Server, Activity, Shield, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { useAuth } from '../context/AuthContext';
 
 export function AboutPage() {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   return (
     <motion.div 
@@ -33,6 +35,24 @@ export function AboutPage() {
           <h1 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white tracking-tight">AgriGenius</h1>
         </div>
         <div className="flex items-center space-x-3">
+          <button
+            type="button"
+            onClick={() => navigate(isAuthenticated ? '/profile' : '/auth')}
+            className="inline-flex items-center justify-center px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-bold text-slate-700 dark:text-neutral-200 bg-slate-100 hover:bg-slate-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 rounded-xl border border-slate-200 dark:border-neutral-800 transition-all cursor-pointer"
+            title={isAuthenticated ? "View Profile" : "Sign In / Login"}
+          >
+            {isAuthenticated ? (
+              <>
+                <User className="w-3.5 h-3.5 mr-1 text-emerald-600 dark:text-white" />
+                <span>Profile</span>
+              </>
+            ) : (
+              <>
+                <User className="w-3.5 h-3.5 mr-1 text-slate-500 dark:text-neutral-400" />
+                <span>Sign In</span>
+              </>
+            )}
+          </button>
           <ThemeToggle />
         </div>
       </header>

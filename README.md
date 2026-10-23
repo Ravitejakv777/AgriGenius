@@ -37,7 +37,7 @@ Run the API from the repository root:
 uvicorn backend.server:app --host 127.0.0.1 --port 8000
 ```
 
-Run the frontend in a second terminal:
+Run the farmer-facing public frontend in a second terminal (Port 5173):
 
 ```bash
 cd frontend
@@ -45,7 +45,17 @@ npm install
 npm run dev
 ```
 
-Vite proxies `/api` to `http://127.0.0.1:8000`. For a separate deployment, set `VITE_API_BASE_URL` in the frontend and `AGRI_CORS_ORIGINS` in the backend.
+Run the standalone National Admin Command Center in a third terminal (Port 5174):
+
+```bash
+cd admin
+npm install
+npm run dev
+```
+
+- Public Farmer Site: `http://localhost:5173`
+- Dedicated Admin Command Center: `http://localhost:5174`
+- FastAPI Documentation & Endpoints: `http://localhost:8000/docs`
 
 ## Build and Evaluation
 
