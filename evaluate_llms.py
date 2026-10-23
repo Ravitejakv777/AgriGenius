@@ -1,6 +1,7 @@
 """Compare both configured generators with RAGAS on a reviewed query JSON file."""
 
 import argparse
+import asyncio
 import json
 from collections import defaultdict
 from pathlib import Path
@@ -43,7 +44,7 @@ def summarize(results: list[dict]) -> dict:
     return summary
 
 
-def main() -> int:
+async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--query-file", default="demo_queries.json")
     parser.add_argument("--output", default="llm_evaluation_results.json")
@@ -62,7 +63,7 @@ def main() -> int:
         if not query:
             print(f"Skipping case {index}: missing query")
             continue
-        comparison = rag.compare_models(query, top_k=args.top_k)
+        comparison = await rag.compare_models(query, top_k=args.top_k)
         results.append({
             "case_id": case.get("id", index),
             "language": case.get("language", "Unspecified"),
@@ -96,4 +97,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(asyncio.run(main()))

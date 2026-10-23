@@ -468,7 +468,7 @@ Answer:"""
             "note": "Positive weights raised the local relevance prediction; negative weights lowered it. This explains the reranker score, not the generated answer's factual correctness.",
         }
 
-    def compare_models(self, query: str, top_k: int = DEFAULT_TOP_K) -> dict[str, Any]:
+    async def compare_models(self, query: str, top_k: int = DEFAULT_TOP_K) -> dict[str, Any]:
         """Run both configured answer models on identical retrieved evidence and score with RAGAS."""
         import time
 
@@ -514,29 +514,48 @@ Answer:"""
         evaluation_status = "skipped_no_context" if not sources else "skipped_no_successful_generation"
         judge_model = EVALUATION_JUDGE_MODEL
         if sources and any(item["status"] == "ok" for item in results):
+            judge_sync_client = None
+            judge_async_client = None
             try:
                 from ragas.embeddings import GoogleEmbeddings
                 from ragas.llms import llm_factory
                 from ragas.metrics.collections import AnswerRelevancy, Faithfulness
+                from openai import AsyncOpenAI
 
                 api_key = os.environ.get("GEMINI_API_KEY")
                 if not api_key:
                     raise RuntimeError("GEMINI_API_KEY is required for the RAGAS judge.")
-                judge_client = genai.Client(api_key=api_key)
-                judge_llm = llm_factory(judge_model, provider="google", client=judge_client, temperature=0.0)
-                judge_embeddings = GoogleEmbeddings(client=judge_client, model="gemini-embedding-001")
+                # RAGAS collection metrics call the judge asynchronously. The
+                # GenAI Instructor adapter only accepts a synchronous Google
+                # client, so use Google's OpenAI-compatible endpoint with an
+                # AsyncOpenAI client for the judge instead.
+                judge_sync_client = genai.Client(api_key=api_key)
+                judge_async_client = AsyncOpenAI(
+                    api_key=api_key,
+                    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+                )
+                judge_llm = llm_factory(
+                    judge_model,
+                    provider="openai",
+                    client=judge_async_client,
+                    adapter="instructor",
+                    temperature=0.0,
+                )
+                judge_embeddings = GoogleEmbeddings(client=judge_sync_client, model="gemini-embedding-001")
                 faithfulness_metric = Faithfulness(llm=judge_llm)
                 relevancy_metric = AnswerRelevancy(llm=judge_llm, embeddings=judge_embeddings)
                 contexts = [source.text for source in sources]
                 for item in results:
                     if item["status"] != "ok":
                         continue
-                    faithfulness_raw = faithfulness_metric.score(
+                    faithfulness_result = await faithfulness_metric.ascore(
                         user_input=query, response=item["answer"], retrieved_contexts=contexts
-                    ).value
-                    answer_relevancy_raw = relevancy_metric.score(
+                    )
+                    answer_relevancy_result = await relevancy_metric.ascore(
                         user_input=query, response=item["answer"]
-                    ).value
+                    )
+                    faithfulness_raw = faithfulness_result.value
+                    answer_relevancy_raw = answer_relevancy_result.value
                     faithfulness = float(faithfulness_raw) if faithfulness_raw is not None and np.isfinite(faithfulness_raw) else None
                     answer_relevancy = float(answer_relevancy_raw) if answer_relevancy_raw is not None and np.isfinite(answer_relevancy_raw) else None
                     item["metrics"] = {
@@ -550,6 +569,13 @@ Answer:"""
                 for item in results:
                     if item["status"] == "ok":
                         item["evaluation_error"] = str(error)
+            finally:
+                try:
+                    if judge_async_client is not None:
+                        await judge_async_client.close()
+                finally:
+                    if judge_sync_client is not None:
+                        judge_sync_client.close()
 
         return {
             "query": query,

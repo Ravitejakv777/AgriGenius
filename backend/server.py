@@ -95,9 +95,9 @@ def chat(request: ChatRequest):
     return result
 
 @app.post("/api/llm/compare")
-def compare_llms(request: CompareRequest):
+async def compare_llms(request: CompareRequest):
     """Compare both configured generators against the same retrieved context."""
-    return rag.compare_models(request.query, top_k=request.top_k)
+    return await rag.compare_models(request.query, top_k=request.top_k)
 
 @app.post("/api/explain")
 def explain_source(request: ExplainRequest):
