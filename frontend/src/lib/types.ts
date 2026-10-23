@@ -28,7 +28,15 @@ export type ChatResponse = {
   grounded: boolean;
   confidence: "high" | "medium" | "low" | "unknown";
   sources: SourcePassage[];
+  generation?: {
+    provider: "qwen" | "groq" | null;
+    model: string | null;
+    fallback_used: boolean;
+    fallback_reason?: string | null;
+  };
 };
+
+export type GenerationInfo = NonNullable<ChatResponse["generation"]>;
 
 export type ModelComparisonResult = {
   provider: 'qwen' | 'groq';

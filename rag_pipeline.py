@@ -576,13 +576,44 @@ Answer:"""
         llm_provider: str = "qwen",
     ) -> dict[str, Any]:
         sources = self.retrieve_sources(query, top_k=top_k, fetch_k=fetch_k, where=where)
-        answer = self.generate_answer(query, sources, llm_provider) if generate else ""
+        used_provider = llm_provider if sources and generate else None
+        fallback_used = False
+        fallback_reason = None
+        if generate:
+            try:
+                answer = self.generate_answer(query, sources, llm_provider)
+                if sources and not answer.strip():
+                    raise RuntimeError("The selected model returned an empty answer.")
+            except Exception as primary_error:
+                if not sources:
+                    raise
+                fallback_provider = "groq" if llm_provider == "qwen" else "qwen"
+                try:
+                    answer = self.generate_answer(query, sources, fallback_provider)
+                    if not answer.strip():
+                        raise RuntimeError("The fallback model returned an empty answer.")
+                    used_provider = fallback_provider
+                    fallback_used = True
+                    fallback_reason = str(primary_error)
+                except Exception as fallback_error:
+                    raise RuntimeError(
+                        f"Primary model {llm_provider!r} failed ({primary_error}); "
+                        f"fallback model {fallback_provider!r} failed ({fallback_error})."
+                    ) from fallback_error
+        else:
+            answer = ""
         return {
             "query": query,
             "answer": answer,
             "sources": sources,
             "source_count": len(sources),
             "collection_count": self.collection_count(),
+            "generation": {
+                "provider": used_provider,
+                "model": self.qwen_model_name if used_provider == "qwen" else self.groq_model_name if used_provider == "groq" else None,
+                "fallback_used": fallback_used,
+                "fallback_reason": fallback_reason,
+            },
         }
 
     def generate_answer_stream(self, query: str, sources: list[RetrievedSource], llm_provider: str = "qwen"):
@@ -641,9 +672,41 @@ Answer:"""
             "collection_count": self.collection_count(),
         }
         
-        # Then yield the streamed chunks
-        for chunk in self.generate_answer_stream(query, sources, llm_provider=llm_provider):
+        if not sources:
+            for chunk in self.generate_answer_stream(query, sources, llm_provider=llm_provider):
+                yield {"type": "chunk", "content": chunk}
+            return
+
+        providers = [llm_provider, "groq" if llm_provider == "qwen" else "qwen"]
+        provider_errors: dict[str, str] = {}
+        for provider_index, provider in enumerate(providers):
+            model_name = self.qwen_model_name if provider == "qwen" else self.groq_model_name
+            stream = iter(self.generate_answer_stream(query, sources, llm_provider=provider))
+            try:
+                first_chunk = next(stream)
+            except StopIteration:
+                provider_errors[provider] = f"Model {model_name!r} returned an empty answer."
+                continue
+            except Exception as error:
+                provider_errors[provider] = str(error)
+                continue
+
             yield {
-                "type": "chunk",
-                "content": chunk,
+                "type": "model",
+                "provider": provider,
+                "model": model_name,
+                "fallback_used": provider_index > 0,
+                "fallback_reason": provider_errors.get(providers[0]) if provider_index > 0 else None,
             }
+            yield {"type": "chunk", "content": first_chunk}
+            try:
+                for chunk in stream:
+                    yield {"type": "chunk", "content": chunk}
+            except Exception as error:
+                yield {"type": "error", "message": f"The {model_name} stream stopped unexpectedly: {error}"}
+            return
+
+        raise RuntimeError(
+            f"Both chat models failed. Primary {providers[0]!r}: {provider_errors.get(providers[0], 'unknown error')}; "
+            f"fallback {providers[1]!r}: {provider_errors.get(providers[1], 'unknown error')}."
+        )

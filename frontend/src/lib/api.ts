@@ -42,6 +42,7 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
   const result = await response.json() as {
     answer: string;
     sources?: SourcePassage[];
+    generation?: ChatResponse["generation"];
   };
   const sources = result.sources || [];
   return {
@@ -50,6 +51,7 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     grounded: sources.length > 0,
     confidence: 'unknown',
     sources,
+    generation: result.generation,
   };
 }
 
@@ -77,6 +79,7 @@ export async function streamChatMessage(
   request: ChatRequest,
   onChunk: (chunk: string) => void,
   onSources: (sources: SourcePassage[]) => void,
+  onModel: (generation: NonNullable<ChatResponse['generation']>) => void,
   onError: (error: Error) => void,
   onComplete: () => void
 ): Promise<void> {
@@ -108,6 +111,7 @@ export async function streamChatMessage(
           try {
             const data = JSON.parse(line.slice(6));
             if (data.type === 'metadata') onSources(data.sources || []);
+            if (data.type === 'model') onModel(data);
             if (data.type === 'chunk') onChunk(data.content || '');
             if (data.type === 'error') throw new Error(data.message || 'Streaming request failed.');
           } catch (error) {

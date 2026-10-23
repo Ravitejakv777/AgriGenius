@@ -29,6 +29,8 @@ pip install -r requirements.txt
 
 Set `GROQ_API_KEY` for both answer generators. Optional model overrides are `AGRI_QWEN_MODEL` and `AGRI_GROQ_MODEL`. Evaluation scores are local token-overlap heuristics and need no judge API key. Both `.env` and `keys.env` are ignored by Git.
 
+Chat uses Qwen as its primary generator and retries with GPT-OSS if Qwen fails before returning an answer. The assistant identifies the model used. Both generators use Groq, so this fallback can recover from a model-specific error but not from a Groq outage or missing API key.
+
 Run the API from the repository root:
 
 ```bash

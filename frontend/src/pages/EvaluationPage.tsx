@@ -92,7 +92,7 @@ export function EvaluationPage() {
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-1 text-[11px] font-bold text-emerald-800 dark:text-emerald-200"><BarChart3 className="h-3.5 w-3.5" /> Live two-model comparison</div>
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl">LLM testing and quality</h1>
-          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">Qwen 3.8 and GPT-OSS on Groq receive the same retrieved KCC passages. Generation latency is measured, while token-coverage scores are calculated locally without a scoring model or extra API call.</p>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-neutral-400">The chat assistant normally uses Qwen 3.8 27B through Groq and retries with GPT-OSS 20B through Groq if the primary generation fails. This page runs both models side by side on the same retrieved KCC passages. It reports latency and local token overlap; these scores are not semantic quality checks.</p>
         </div>
 
         <section className="mt-7 rounded-2xl border border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 shadow-sm sm:p-6">

@@ -30,7 +30,7 @@ Hindi / Telugu / English farmer question
   -> SSE answer chunks with source metadata
 ```
 
-The prompt requires answers to stay within the retrieved KCC context, cite source ranks, use the query language when possible, and abstain when evidence is insufficient. Provider errors are surfaced through the API; they are not returned as generated answer text.
+The prompt requires answers to stay within the retrieved KCC context, cite source ranks, use the query language when possible, and abstain when evidence is insufficient. Chat uses Qwen as the primary generator and retries once with GPT-OSS if the primary call fails before returning an answer. The response identifies the model that produced it. If both fail, the API surfaces an error instead of returning invented text. In streaming mode, fallback is possible only before the first answer chunk; an error after partial output is surfaced.
 
 ## API and Frontend
 
@@ -40,6 +40,7 @@ The prompt requires answers to stay within the retrieved KCC context, cite sourc
 - `POST /api/llm/compare` retrieves once, runs both configured generators on identical evidence, records generation latency, and computes local Unicode token-overlap metrics.
 - `POST /api/explain` applies LIME text perturbations to explain one BGE reranker score for the requested ranked passage.
 - The `/evaluation` UI shows the two live answer outputs, timings, evidence-token coverage, question-token coverage, and their lexical unmatched-token proxy.
+- The normal chat assistant uses Qwen via Groq with GPT-OSS via Groq as its fallback; the chat answer shows which model responded.
 - `python evaluate_llms.py --query-file demo_queries.json` runs the same dual-model comparison over the query file and writes per-case results plus per-language/provider summaries to `llm_evaluation_results.json`.
 - Vite proxies `/api` to `http://127.0.0.1:8000` during development.
 - When the backend is unavailable, the frontend reports that state and shows an error on chat requests. It does not show hard-coded sample answers or citations as grounded output.
