@@ -23,6 +23,7 @@ AgriGenius is a local multilingual RAG development prototype. The checked-in bac
 - Reranker: `BAAI/bge-reranker-v2-m3`.
 - Generation: Groq-hosted Qwen (`qwen/qwen3.8-27b` by default) and Groq GPT-OSS (`openai/gpt-oss-20b`); both can be run against the same evidence through the LLM QA page.
 - Evaluation scores: deterministic local Unicode token coverage for answer-to-evidence and question-to-answer overlap; no judge model is called.
+- Chat generation: Qwen via Groq is primary; GPT-OSS via Groq is retried once on a pre-answer failure, and the selected model is reported with the response.
 - Explainability: on-demand LIME perturbation explanation for the BGE cross-encoder relevance score of a selected source.
 - Service: FastAPI with `/api/health`, `/api/chat`, `/api/chat/stream`, `/api/llm/compare`, and `/api/explain`.
 - UI: React 19, TypeScript, Vite, with SSE streaming, source cards, an LLM QA view, live per-run generation latency, and local token-overlap indicators.

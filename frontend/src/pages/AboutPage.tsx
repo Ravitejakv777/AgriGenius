@@ -82,7 +82,7 @@ export function AboutPage() {
               <Activity className="w-6 h-6 text-amber-600 dark:text-white" />
             </div>
             <h3 className="font-semibold text-slate-800 dark:text-white mb-2">Multilingual Support</h3>
-            <p className="text-sm text-slate-500 dark:text-neutral-400">The retrieval model and interface target Hindi, Telugu, and English; end-to-end quality checks are pending.</p>
+            <p className="text-sm text-slate-500 dark:text-neutral-400">AgriGenius retrieves Kisan Call Centre passages with Indic Sentence-BERT, reranks them with BGE Reranker v2 M3, then generates an answer with Qwen 3.8 27B through Groq. If that model call fails, it retries with GPT-OSS 20B through Groq. Hindi, Telugu, and English quality checks still need reviewed end-to-end evaluation.</p>
           </div>
           <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-slate-200 dark:border-neutral-800 shadow-sm flex flex-col items-center text-center">
             <div className="bg-blue-50 dark:bg-white/10 p-3 rounded-full mb-4">

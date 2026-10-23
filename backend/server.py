@@ -184,6 +184,8 @@ def chat_stream(request: ChatRequest):
                     yield json.dumps({"type": "metadata", "sources": sources})
                 elif chunk["type"] == "chunk":
                     yield json.dumps({"type": "chunk", "content": chunk["content"]})
+                elif chunk["type"] in {"model", "error"}:
+                    yield json.dumps(chunk)
         except Exception as error:
             yield json.dumps({"type": "error", "message": str(error)})
     
