@@ -26,7 +26,7 @@ Hindi / Telugu / English farmer question
   -> remove likely question-only rows and near duplicates
   -> BAAI/bge-reranker-v2-m3 cross-encoder reranking
   -> top-k KCC passages and metadata
-  -> Gemini 3.6 Flash or Hugging Face Llama 3.1 8B generation
+  -> Groq Qwen 3.8 27B or Groq openai/gpt-oss-20b generation
   -> SSE answer chunks with source metadata
 ```
 
@@ -37,9 +37,9 @@ The prompt requires answers to stay within the retrieved KCC context, cite sourc
 - `GET /api/health` reports the live collection size and configured embedding, reranker, and generation models.
 - `POST /api/chat` returns a complete answer and source list.
 - `POST /api/chat/stream` sends source metadata and answer chunks as SSE.
-- `POST /api/llm/compare` retrieves once, runs both configured generators on identical evidence, records generation latency, and optionally scores each response with RAGAS.
+- `POST /api/llm/compare` retrieves once, runs both configured generators on identical evidence, records generation latency, and computes local Unicode token-overlap metrics.
 - `POST /api/explain` applies LIME text perturbations to explain one BGE reranker score for the requested ranked passage.
-- The `/evaluation` UI shows the two live answer outputs, timings, faithfulness, answer relevance, and an explicitly labeled unsupported-claim proxy.
+- The `/evaluation` UI shows the two live answer outputs, timings, evidence-token coverage, question-token coverage, and their lexical unmatched-token proxy.
 - `python evaluate_llms.py --query-file demo_queries.json` runs the same dual-model comparison over the query file and writes per-case results plus per-language/provider summaries to `llm_evaluation_results.json`.
 - Vite proxies `/api` to `http://127.0.0.1:8000` during development.
 - When the backend is unavailable, the frontend reports that state and shows an error on chat requests. It does not show hard-coded sample answers or citations as grounded output.
@@ -49,6 +49,6 @@ The prompt requires answers to stay within the retrieved KCC context, cite sourc
 
 Local record counts, sampled corpus/index alignment, Chroma cosine configuration, provenance metadata, and the frontend production build have been checked. Retrieval quality across languages, abstention under live generation, provider behavior, and deployment remain pending an online end-to-end validation run. The small demo query set is a smoke check, not a benchmark.
 
-Install `lime` for the source-card explanations and `ragas` for model quality scores. RAGAS scoring uses `GEMINI_API_KEY`, `AGRI_EVAL_JUDGE_MODEL` (default `gemini-3.8-flash`), and Google `gemini-embedding-001` embeddings. If generation or judge credentials/network access are absent, output/status shows the failure or pending score; no score is substituted. The displayed unsupported-claim rate is `1 - faithfulness`, a proxy rather than a separate hallucination classifier.
+Install `lime` for source-card explanations and `groq` for both answer generators. Qwen (`AGRI_QWEN_MODEL`, default `qwen/qwen3.8-27b`) and GPT-OSS (`AGRI_GROQ_MODEL`, default `openai/gpt-oss-20b`) use `GROQ_API_KEY`. Scoring uses Unicode tokenization and set overlap in the backend; it makes no judge-model request and needs no additional API key. Each generation request has a 30-second client timeout. Token-coverage metrics are lexical indicators only: they cannot establish semantic support, factual correctness, or hallucination.
 
-Run `python evaluate_retrieval.py --top-k 5 --fetch-k 20` for per-language crop/category hit rates and `python evaluate_abstention.py --provider gemini` for the unsupported Mars cultivation prompt. These require the embedding and reranker models; the abstention check also requires provider credentials.
+Run `python evaluate_retrieval.py --top-k 5 --fetch-k 20` for per-language crop/category hit rates and `python evaluate_abstention.py --provider qwen` for the unsupported Mars cultivation prompt. These require the embedding and reranker models; the abstention check also requires provider credentials.
